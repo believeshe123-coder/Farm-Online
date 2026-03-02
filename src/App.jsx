@@ -7,7 +7,7 @@ import TileInspector from './ui/TileInspector';
 import { createNewGame } from './game/createNewGame';
 import { loadGame, saveGame } from './game/save';
 import { advanceTick } from './game/tick';
-import { harvestCrop, plantCrop, sellItem } from './game/actions';
+import { expandFarm, getNextFarmExpansion, harvestCrop, plantCrop, sellItem } from './game/actions';
 
 export default function App() {
   const [gameState, setGameState] = useState(() => loadGame() ?? createNewGame());
@@ -41,6 +41,9 @@ export default function App() {
       setGameState(savedState);
     }
   };
+
+  const nextExpansion = getNextFarmExpansion(gameState.gridSize);
+  const canExpand = Boolean(nextExpansion) && gameState.money >= nextExpansion.cost;
 
   return (
     <div className="app-shell">
@@ -94,6 +97,9 @@ export default function App() {
                 return plantCrop(prevState, prevState.selectedTileIndex, cropId);
               })
             }
+            nextExpansion={nextExpansion}
+            canExpand={canExpand}
+            onExpand={() => setGameState((prevState) => expandFarm(prevState))}
           />
           <InventoryPanel
             inventory={gameState.inventory}

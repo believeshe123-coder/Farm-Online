@@ -1,4 +1,4 @@
-export default function ShopPanel({ selectedTileIndex, onPlant }) {
+export default function ShopPanel({ selectedTileIndex, onPlant, nextExpansion, canExpand, onExpand }) {
   const canPlant = selectedTileIndex !== null;
 
   return (
@@ -10,6 +10,11 @@ export default function ShopPanel({ selectedTileIndex, onPlant }) {
         </button>
         <button type="button" disabled={!canPlant} onClick={() => onPlant('carrot')}>
           Plant Carrot
+        </button>
+        <button type="button" disabled={!canExpand} onClick={onExpand}>
+          {nextExpansion
+            ? `Expand Farm (${nextExpansion.to}x${nextExpansion.to}) - $${nextExpansion.cost}`
+            : 'Expand Farm (Max size reached)'}
         </button>
       </div>
     </section>
