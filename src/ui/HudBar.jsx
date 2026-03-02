@@ -1,11 +1,14 @@
-export default function HudBar() {
+export default function HudBar({ tick, money, onNewGame, onLoadGame }) {
   return (
     <header className="panel hud">
       <div>
         <h2>Farm Online</h2>
-        <p className="muted">Money: $50 · Tick: 0</p>
+        <p className="muted">Money: ${money} · Tick: {tick}</p>
       </div>
-      <div className="muted">⏯ Pause | ⏩ Speed</div>
+      <div>
+        <button onClick={onNewGame}>New Game</button>
+        <button onClick={onLoadGame}>Load Game</button>
+      </div>
     </header>
   );
 }
