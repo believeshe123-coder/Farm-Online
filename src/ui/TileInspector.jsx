@@ -1,6 +1,6 @@
 import { CROPS } from '../game/constants';
 
-export default function TileInspector({ selectedTile, selectedTileIndex, tick, onHarvest }) {
+export default function TileInspector({ selectedTile, selectedTileIndex, tick, onHarvest, onOpenCoop }) {
   if (selectedTileIndex === null || !selectedTile) {
     return (
       <section className="panel">
@@ -16,6 +16,7 @@ export default function TileInspector({ selectedTile, selectedTileIndex, tick, o
   const crop = selectedTile.cropId ? CROPS[selectedTile.cropId] : null;
   const growth = crop && selectedTile.kind === 'crop' ? Math.min(tick - selectedTile.plantedAtTick, crop.growTime) : null;
   const showHarvest = Boolean(selectedTile.kind === 'crop' && selectedTile.isReady);
+  const showCoopButton = selectedTile.type === 'coop';
 
   return (
     <section className="panel">
@@ -40,6 +41,11 @@ export default function TileInspector({ selectedTile, selectedTileIndex, tick, o
       {showHarvest && (
         <button type="button" onClick={onHarvest}>
           Harvest
+        </button>
+      )}
+      {showCoopButton && (
+        <button type="button" onClick={onOpenCoop}>
+          Open Coop
         </button>
       )}
     </section>
