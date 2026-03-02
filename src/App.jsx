@@ -5,13 +5,29 @@ import ShopPanel from './ui/ShopPanel';
 import InventoryPanel from './ui/InventoryPanel';
 import { createNewGame } from './game/createNewGame';
 import { loadGame, saveGame } from './game/save';
+import { advanceTick } from './game/tick';
 
 export default function App() {
   const [gameState, setGameState] = useState(() => loadGame() ?? createNewGame());
+  const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
     saveGame(gameState);
   }, [gameState]);
+
+  useEffect(() => {
+    if (isPaused) {
+      return undefined;
+    }
+
+    const intervalId = setInterval(() => {
+      setGameState((prevState) => advanceTick(prevState));
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isPaused]);
 
   const handleNewGame = () => {
     setGameState(createNewGame());
@@ -29,6 +45,8 @@ export default function App() {
       <HudBar
         tick={gameState.tick}
         money={gameState.money}
+        isPaused={isPaused}
+        onTogglePause={() => setIsPaused((prevIsPaused) => !prevIsPaused)}
         onNewGame={handleNewGame}
         onLoadGame={handleLoadGame}
       />
