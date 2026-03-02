@@ -1,54 +1,41 @@
 const HOTBAR_SLOTS = [
-  { id: 1, label: 'HOE', tool: 'hoe', hotkey: '1' },
-  { id: 2, label: 'WATER', tool: 'water', hotkey: '2' },
-  { id: 3, label: 'EMPTY', tool: null, hotkey: '3' },
-  { id: 4, label: 'EMPTY', tool: null, hotkey: '4' },
-  { id: 5, label: 'EMPTY', tool: null, hotkey: '5' },
-  { id: 6, label: 'EMPTY', tool: null, hotkey: '6' },
-  { id: 7, label: 'EMPTY', tool: null, hotkey: '7' },
-  { id: 8, label: 'EMPTY', tool: null, hotkey: '8' },
-  { id: 9, label: 'EMPTY', tool: null, hotkey: '9' },
-  { id: 10, label: 'EMPTY', tool: null, hotkey: '0' },
+  { id: 1, label: 'HOE', selection: { kind: 'tool', id: 'hoe' }, hotkey: '1' },
+  { id: 2, label: 'WATER', selection: { kind: 'tool', id: 'water' }, hotkey: '2' },
+  { id: 3, label: 'WHEAT', selection: { kind: 'item', id: 'wheat_seed' }, hotkey: '3' },
+  { id: 4, label: 'CARROT', selection: { kind: 'item', id: 'carrot_seed' }, hotkey: '4' },
 ];
 
-function formatSeedSummary(inventory) {
-  const seedEntries = Object.entries(inventory)
-    .filter(([itemId, quantity]) => itemId.endsWith('_seed') && quantity > 0)
-    .map(([itemId, quantity]) => `${itemId.replace('_seed', '')} x${quantity}`);
-
-  if (seedEntries.length === 0) {
-    return 'Seeds: none';
-  }
-
-  return `Seeds: ${seedEntries.join(', ')}`;
+function isSameSelection(a, b) {
+  return a?.kind === b?.kind && a?.id === b?.id;
 }
 
-export default function BackpackBar({ inventory, selectedTool, onSelectTool }) {
+export default function BackpackBar({ inventory, selectedHotbar, onSelectHotbar }) {
   return (
     <section className="backpack-bar" aria-label="Backpack hotbar">
       <div className="backpack-hotbar" role="list">
         {HOTBAR_SLOTS.map((slot) => {
-          const isSelected = slot.tool !== null && selectedTool === slot.tool;
+          const isSeed = slot.selection.kind === 'item';
+          const seedCount = isSeed ? inventory[slot.selection.id] ?? 0 : null;
+          const isDisabled = isSeed && seedCount === 0;
+          const isSelected = isSameSelection(selectedHotbar, slot.selection);
 
           return (
             <button
               key={slot.id}
               type="button"
               className={`backpack-slot ${isSelected ? 'is-selected' : ''}`}
-              onClick={() => slot.tool && onSelectTool(slot.tool)}
-              disabled={slot.tool === null}
+              onClick={() => onSelectHotbar(slot.selection)}
+              disabled={isDisabled}
               role="listitem"
               aria-pressed={isSelected}
             >
               <span className="backpack-slot-hotkey">{slot.hotkey}</span>
-              <span className={`backpack-slot-label ${slot.tool === null ? 'is-empty' : ''}`}>
-                {slot.tool === null ? 'EMPTY' : slot.label}
-              </span>
+              <span className="backpack-slot-label">{slot.label}</span>
+              {isSeed && <span className="backpack-slot-count">x{seedCount}</span>}
             </button>
           );
         })}
       </div>
-      <p className="backpack-seeds">{formatSeedSummary(inventory)}</p>
     </section>
   );
 }

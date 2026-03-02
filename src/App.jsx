@@ -13,23 +13,29 @@ import {
   breedChicken,
   getUnlockPlotCostForState,
   getUnlockablePlotCount,
-  harvestCrop,
+  harvestSpot,
+  onSpotClick,
   placeBuilding,
-  plantCrop,
   unlockPlot,
 } from './game/actions';
 
-
 function withSelectedTool(gameState) {
-  if (gameState.selectedTool === 'hoe' || gameState.selectedTool === 'water') {
+  if (
+    gameState.selectedTool &&
+    typeof gameState.selectedTool === 'object' &&
+    ((gameState.selectedTool.kind === 'tool' && (gameState.selectedTool.id === 'hoe' || gameState.selectedTool.id === 'water')) ||
+      (gameState.selectedTool.kind === 'item' &&
+        (gameState.selectedTool.id === 'wheat_seed' || gameState.selectedTool.id === 'carrot_seed')))
+  ) {
     return gameState;
   }
 
   return {
     ...gameState,
-    selectedTool: 'hoe',
+    selectedTool: { kind: 'tool', id: 'hoe' },
   };
 }
+
 export default function App() {
   const [view, setView] = useState('game');
   const [gameState, setGameState] = useState(() => {
@@ -58,21 +64,30 @@ export default function App() {
     };
   }, [view, isPaused]);
 
-
   useEffect(() => {
     if (view !== 'game') {
       return undefined;
     }
 
     const handleKeyDown = (event) => {
-      if (event.key !== '1' && event.key !== '2') {
+      if (event.key === '1') {
+        setGameState((prevState) => ({ ...prevState, selectedTool: { kind: 'tool', id: 'hoe' } }));
         return;
       }
 
-      setGameState((prevState) => ({
-        ...prevState,
-        selectedTool: event.key === '1' ? 'hoe' : 'water',
-      }));
+      if (event.key === '2') {
+        setGameState((prevState) => ({ ...prevState, selectedTool: { kind: 'tool', id: 'water' } }));
+        return;
+      }
+
+      if (event.key === '3') {
+        setGameState((prevState) => ({ ...prevState, selectedTool: { kind: 'item', id: 'wheat_seed' } }));
+        return;
+      }
+
+      if (event.key === '4') {
+        setGameState((prevState) => ({ ...prevState, selectedTool: { kind: 'item', id: 'carrot_seed' } }));
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -125,12 +140,14 @@ export default function App() {
   const totalPlots = gameState.tiles.length;
   const unlockCost = getUnlockPlotCostForState(gameState);
   const canUnlockPlot = getUnlockablePlotCount(gameState) > 0 && gameState.money >= unlockCost;
-  const selectedTile =
-    gameState.selectedTileIndex === null ? null : gameState.tiles[gameState.selectedTileIndex];
-  const isSelectedTileUnlocked =
-    gameState.selectedTileIndex !== null && gameState.unlockedTiles[gameState.selectedTileIndex];
+  const selectedPlotIndex = gameState.selected?.plotIndex ?? null;
+  const selectedSpotIndex = gameState.selected?.spotIndex ?? null;
+  const selectedPlot = selectedPlotIndex === null ? null : gameState.plots[selectedPlotIndex];
+  const selectedSpot =
+    selectedPlotIndex === null || selectedSpotIndex === null ? null : selectedPlot?.spots?.[selectedSpotIndex] ?? null;
+  const selectedTile = selectedPlotIndex === null ? null : gameState.tiles[selectedPlotIndex];
+  const isSelectedTileUnlocked = selectedPlotIndex !== null && gameState.unlockedTiles[selectedPlotIndex];
   const selectedCoop = selectedTile?.type === 'coop' ? selectedTile : null;
-
 
   if (view === 'front') {
     return (
@@ -160,54 +177,42 @@ export default function App() {
       <main className="main-layout game-layout">
         <AsciiBoard
           tiles={gameState.tiles}
+          plots={gameState.plots}
           gridSize={gameState.gridSize}
+          tick={gameState.tick}
           unlockedTiles={gameState.unlockedTiles}
-          renderMode={gameState.renderMode}
-          selectedTileIndex={gameState.selectedTileIndex}
-          onSelectTile={(index) =>
-            setGameState((prevState) => ({
-              ...prevState,
-              selectedTileIndex: index,
-            }))
+          selected={gameState.selected}
+          onSpotClick={(plotIndex, spotIndex) =>
+            setGameState((prevState) => onSpotClick(prevState, plotIndex, spotIndex))
           }
         />
         <aside className="side-panels">
           <TileInspector
-            selectedTileIndex={gameState.selectedTileIndex}
-            selectedTile={selectedTile}
+            selected={gameState.selected}
+            selectedSpot={selectedSpot}
             tick={gameState.tick}
             isSelectedTileUnlocked={isSelectedTileUnlocked}
             unlockedPlotCount={unlockedPlotCount}
             onHarvest={() =>
               setGameState((prevState) => {
-                if (prevState.selectedTileIndex === null) {
+                if (!prevState.selected) {
                   return prevState;
                 }
 
-                return harvestCrop(prevState, prevState.selectedTileIndex);
+                return harvestSpot(prevState, prevState.selected.plotIndex, prevState.selected.spotIndex);
               })
             }
             onOpenCoop={() => setIsCoopModalOpen(true)}
           />
           <ShopPanel
-            inventory={gameState.inventory}
-            selectedTileIndex={gameState.selectedTileIndex}
-            onPlant={(cropId) =>
-              setGameState((prevState) => {
-                if (prevState.selectedTileIndex === null) {
-                  return prevState;
-                }
-
-                return plantCrop(prevState, prevState.selectedTileIndex, cropId);
-              })
-            }
+            selectedPlotIndex={selectedPlotIndex}
             onBuildCoop={() =>
               setGameState((prevState) => {
-                if (prevState.selectedTileIndex === null) {
+                if (prevState.selected?.plotIndex === undefined) {
                   return prevState;
                 }
 
-                return placeBuilding(prevState, prevState.selectedTileIndex, 'coop');
+                return placeBuilding(prevState, prevState.selected.plotIndex, 'coop');
               })
             }
             unlockedPlotCount={unlockedPlotCount}
@@ -220,22 +225,20 @@ export default function App() {
       </main>
       <BackpackBar
         inventory={gameState.inventory}
-        selectedTool={gameState.selectedTool}
-        onSelectTool={(tool) =>
+        selectedHotbar={gameState.selectedTool}
+        onSelectHotbar={(selection) =>
           setGameState((prevState) => ({
             ...prevState,
-            selectedTool: tool,
+            selectedTool: selection,
           }))
         }
       />
-      {isCoopModalOpen && selectedCoop && gameState.selectedTileIndex !== null && (
+      {isCoopModalOpen && selectedCoop && selectedPlotIndex !== null && (
         <CoopModal
           coop={selectedCoop}
           onClose={() => setIsCoopModalOpen(false)}
           onBreed={(parentAId, parentBId) =>
-            setGameState((prevState) =>
-              breedChicken(prevState, prevState.selectedTileIndex, parentAId, parentBId),
-            )
+            setGameState((prevState) => breedChicken(prevState, selectedPlotIndex, parentAId, parentBId))
           }
         />
       )}

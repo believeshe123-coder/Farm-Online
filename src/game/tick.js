@@ -7,120 +7,70 @@ function addInventoryItem(inventory, itemId, amount = 1) {
   };
 }
 
-function getOrthogonalNeighbors(tileIndex, gridSize, totalTiles) {
-  const x = tileIndex % gridSize;
-  const y = Math.floor(tileIndex / gridSize);
-  const deltas = [
-    [0, -1],
-    [1, 0],
-    [0, 1],
-    [-1, 0],
-  ];
-
-  return deltas
-    .map(([dx, dy]) => {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx < 0 || ny < 0 || nx >= gridSize || ny >= gridSize) {
-        return null;
-      }
-
-      const neighborIndex = ny * gridSize + nx;
-      return neighborIndex >= 0 && neighborIndex < totalTiles ? neighborIndex : null;
-    })
-    .filter((neighborIndex) => neighborIndex !== null);
-}
-
-function areInSameFiveTickWindow(tickA, tickB) {
-  return Math.floor(tickA / 5) === Math.floor(tickB / 5);
-}
-
 export function advanceTick(state) {
   const nextTick = state.tick + 1;
   let nextInventory = state.inventory;
 
-  let nextTiles = state.tiles.map((tile) => {
-    if (tile.kind !== 'crop') {
-      if (tile.type !== 'coop' || !Array.isArray(tile.animals)) {
-        return tile;
-      }
-
-      const nextAnimals = tile.animals.map((animal) => {
-        if (animal.species !== 'chicken') {
-          return animal;
-        }
-
-        const nextEggTimer = animal.eggTimer - 1;
-        if (nextEggTimer <= 0) {
-          nextInventory = addInventoryItem(nextInventory, 'egg', 1);
-          return {
-            ...animal,
-            eggTimer: animal.traits.eggRateTicks,
-          };
-        }
-
-        return {
-          ...animal,
-          eggTimer: nextEggTimer,
-        };
-      });
-
-      return {
-        ...tile,
-        animals: nextAnimals,
-      };
-    }
-
-    const crop = CROPS[tile.cropId];
-    if (!crop) {
+  const nextTiles = state.tiles.map((tile) => {
+    if (tile.type !== 'coop' || !Array.isArray(tile.animals)) {
       return tile;
     }
 
-    const isReady = nextTick - tile.plantedAtTick >= crop.growTime;
-    const becameReady = isReady && !tile.isReady;
+    const nextAnimals = tile.animals.map((animal) => {
+      if (animal.species !== 'chicken') {
+        return animal;
+      }
+
+      const nextEggTimer = animal.eggTimer - 1;
+      if (nextEggTimer <= 0) {
+        nextInventory = addInventoryItem(nextInventory, 'egg', 1);
+        return {
+          ...animal,
+          eggTimer: animal.traits.eggRateTicks,
+        };
+      }
+
+      return {
+        ...animal,
+        eggTimer: nextEggTimer,
+      };
+    });
+
     return {
       ...tile,
-      isReady,
-      type: isReady ? 'ready' : 'growing',
-      readyAtTick: becameReady ? nextTick : tile.readyAtTick,
-      hybridMutationEligible: tile.hybridMutationEligible ?? false,
+      animals: nextAnimals,
     };
   });
 
-  const updatedTiles = [...nextTiles];
-  nextTiles.forEach((tile, tileIndex) => {
-    if (tile.kind !== 'crop' || !tile.isReady || typeof tile.readyAtTick !== 'number') {
-      return;
+  const nextPlots = state.plots.map((plot, plotIndex) => {
+    if (!state.unlockedTiles[plotIndex] || !Array.isArray(plot?.spots)) {
+      return plot;
     }
 
-    const neighbors = getOrthogonalNeighbors(tileIndex, state.gridSize, nextTiles.length);
-    const matchesMutationCondition = neighbors.some((neighborIndex) => {
-      const neighbor = nextTiles[neighborIndex];
-      return (
-        neighbor?.kind === 'crop' &&
-        neighbor.isReady &&
-        neighbor.cropId !== tile.cropId &&
-        typeof neighbor.readyAtTick === 'number' &&
-        areInSameFiveTickWindow(tile.readyAtTick, neighbor.readyAtTick)
-      );
-    });
+    return {
+      ...plot,
+      spots: plot.spots.map((spot) => {
+        if (!spot.crop) {
+          return spot;
+        }
 
-    if (matchesMutationCondition) {
-      updatedTiles[tileIndex] = {
-        ...updatedTiles[tileIndex],
-        hybridMutationEligible: true,
-      };
-    }
+        const crop = CROPS[spot.crop.cropId];
+        if (!crop) {
+          return spot;
+        }
+
+        return {
+          ...spot,
+        };
+      }),
+    };
   });
 
-  nextTiles = updatedTiles;
-
-  const nextState = {
+  return {
     ...state,
     tick: nextTick,
     tiles: nextTiles,
+    plots: nextPlots,
     inventory: nextInventory,
   };
-
-  return nextState;
 }
