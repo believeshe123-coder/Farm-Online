@@ -14,9 +14,96 @@ function buildDefaultUnlockedTiles(gridSize) {
   });
 }
 
+function createDefaultSpot() {
+  return {
+    soil: 'raw',
+    crop: null,
+  };
+}
 
-function normalizeSelectedTool(tool) {
-  return tool === 'water' ? 'water' : 'hoe';
+function createDefaultPlot() {
+  return {
+    spots: Array.from({ length: 25 }, createDefaultSpot),
+  };
+}
+
+function normalizeSelectedTool(selectedTool) {
+  if (selectedTool === 'hoe' || selectedTool === 'water') {
+    return { kind: 'tool', id: selectedTool };
+  }
+
+  if (
+    selectedTool &&
+    typeof selectedTool === 'object' &&
+    ((selectedTool.kind === 'tool' && (selectedTool.id === 'hoe' || selectedTool.id === 'water')) ||
+      (selectedTool.kind === 'item' && (selectedTool.id === 'wheat_seed' || selectedTool.id === 'carrot_seed')))
+  ) {
+    return selectedTool;
+  }
+
+  return { kind: 'tool', id: 'hoe' };
+}
+
+function normalizeSelected(selected) {
+  if (!selected || typeof selected !== 'object') {
+    return null;
+  }
+
+  if (
+    Number.isInteger(selected.plotIndex) &&
+    selected.plotIndex >= 0 &&
+    selected.plotIndex < TOTAL_TILES &&
+    Number.isInteger(selected.spotIndex) &&
+    selected.spotIndex >= 0 &&
+    selected.spotIndex < 25
+  ) {
+    return {
+      plotIndex: selected.plotIndex,
+      spotIndex: selected.spotIndex,
+    };
+  }
+
+  return null;
+}
+
+function normalizeCrop(crop) {
+  if (!crop || typeof crop !== 'object') {
+    return null;
+  }
+
+  if ((crop.cropId === 'wheat' || crop.cropId === 'carrot') && Number.isInteger(crop.plantedAtTick)) {
+    return {
+      cropId: crop.cropId,
+      plantedAtTick: crop.plantedAtTick,
+    };
+  }
+
+  return null;
+}
+
+function normalizeSoil(soil) {
+  if (soil === 'hoed' || soil === 'watered') {
+    return soil;
+  }
+
+  return 'raw';
+}
+
+function normalizePlots(rawPlots) {
+  return Array.from({ length: TOTAL_TILES }, (_, plotIndex) => {
+    const sourcePlot = rawPlots?.[plotIndex];
+    const sourceSpots = Array.isArray(sourcePlot?.spots) ? sourcePlot.spots : [];
+
+    return {
+      spots: Array.from({ length: 25 }, (_, spotIndex) => {
+        const sourceSpot = sourceSpots[spotIndex];
+        return {
+          soil: normalizeSoil(sourceSpot?.soil),
+          crop: normalizeCrop(sourceSpot?.crop),
+        };
+      }),
+    };
+  });
 }
 
 function isValidTile(tile) {
@@ -30,16 +117,21 @@ function isValidGameState(state) {
   if (state.gridSize !== FIXED_GRID_SIZE) return false;
   if (!Array.isArray(state.tiles) || state.tiles.length !== TOTAL_TILES) return false;
   if (!state.tiles.every(isValidTile)) return false;
+  if (!Array.isArray(state.plots) || state.plots.length !== TOTAL_TILES) return false;
+  if (!state.plots.every((plot) => Array.isArray(plot?.spots) && plot.spots.length === 25)) return false;
   if (!Array.isArray(state.unlockedTiles) || state.unlockedTiles.length !== state.tiles.length) return false;
   if (!state.unlockedTiles.every((isUnlocked) => typeof isUnlocked === 'boolean')) return false;
   if (!state.inventory || typeof state.inventory !== 'object' || Array.isArray(state.inventory)) return false;
-  if (state.selectedTool !== undefined && state.selectedTool !== 'hoe' && state.selectedTool !== 'water') return false;
+  if (!state.selectedTool || typeof state.selectedTool !== 'object') return false;
   if (state.renderMode !== undefined && state.renderMode !== 'glyph') return false;
 
-  return state.selectedTileIndex === null ||
-    (Number.isInteger(state.selectedTileIndex) &&
-      state.selectedTileIndex >= 0 &&
-      state.selectedTileIndex < state.tiles.length);
+  return state.selected === null ||
+    (Number.isInteger(state.selected.plotIndex) &&
+      state.selected.plotIndex >= 0 &&
+      state.selected.plotIndex < TOTAL_TILES &&
+      Number.isInteger(state.selected.spotIndex) &&
+      state.selected.spotIndex >= 0 &&
+      state.selected.spotIndex < 25);
 }
 
 function normalizeGameState(state) {
@@ -47,6 +139,7 @@ function normalizeGameState(state) {
     const tile = state.tiles?.[index];
     return isValidTile(tile) ? tile : { type: 'empty' };
   });
+
   const defaultUnlockedTiles = buildDefaultUnlockedTiles(FIXED_GRID_SIZE);
   const normalizedUnlockedTiles = Array.from({ length: TOTAL_TILES }, (_, index) => {
     if (!Array.isArray(state.unlockedTiles)) {
@@ -62,12 +155,10 @@ function normalizeGameState(state) {
     ...state,
     gridSize: FIXED_GRID_SIZE,
     tiles: normalizedTiles,
+    plots: normalizePlots(state.plots),
     unlockedTiles: normalizedUnlockedTiles,
     renderMode: state.renderMode ?? DEFAULT_RENDER_MODE,
-    selectedTileIndex:
-      Number.isInteger(state.selectedTileIndex) && state.selectedTileIndex >= 0 && state.selectedTileIndex < TOTAL_TILES
-        ? state.selectedTileIndex
-        : null,
+    selected: normalizeSelected(state.selected),
     uiMessage: state.uiMessage ?? '',
     selectedTool: normalizeSelectedTool(state.selectedTool),
   };

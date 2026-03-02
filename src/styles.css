@@ -86,6 +86,7 @@ h3 {
 }
 
 .ascii-grid-tile {
+  padding: 10px;
   aspect-ratio: 1 / 1;
   width: 100%;
   min-width: 0;
@@ -104,28 +105,6 @@ h3 {
   transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
-.ascii-grid-pattern {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-template-rows: repeat(5, 1fr);
-  width: 100%;
-  height: 100%;
-  padding: 10%;
-  align-items: center;
-  justify-items: center;
-}
-
-.ascii-grid-glyph {
-  font-size: clamp(18px, 1.6vw, 20px);
-  line-height: 1;
-  display: inline-block;
-}
-
-.ascii-grid-tile:hover {
-  border-color: #c6925d;
-  box-shadow: inset 0 0 0 1px rgba(198, 146, 93, 0.4), 0 0 0 1px rgba(79, 54, 35, 0.24);
-}
-
 .ascii-grid-tile.is-locked {
   color: #937860;
   background: rgba(58, 38, 26, 0.9);
@@ -136,12 +115,6 @@ h3 {
 .ascii-grid-tile.is-ready {
   border-color: #e4ba76;
   box-shadow: 0 0 10px rgba(165, 116, 58, 0.28), inset 0 0 0 1px rgba(228, 186, 118, 0.42);
-}
-
-.ascii-grid-tile.is-selected {
-  border-width: 2px;
-  border-color: #f0c89b;
-  box-shadow: 0 0 0 2px rgba(240, 200, 155, 0.24), inset 0 0 0 2px rgba(240, 200, 155, 0.38);
 }
 
 .sr-only {
@@ -250,7 +223,7 @@ h3 {
 
 .backpack-hotbar {
   display: grid;
-  grid-template-columns: repeat(10, minmax(56px, 64px));
+  grid-template-columns: repeat(4, minmax(70px, 90px));
   gap: 0.5rem;
 }
 
@@ -294,15 +267,12 @@ h3 {
   color: #d8b089;
 }
 
-.backpack-slot-label.is-empty {
-  color: #a28262;
-}
-
-.backpack-seeds {
-  margin: 0;
-  min-width: 220px;
-  color: #edd0a7;
-  font-size: 0.82rem;
+.backpack-slot-count {
+  position: absolute;
+  right: 0.3rem;
+  bottom: 0.2rem;
+  font-size: 0.68rem;
+  color: #eecb9e;
 }
 
 @media (max-width: 920px) {
@@ -312,15 +282,53 @@ h3 {
   }
 
   .backpack-hotbar {
-    grid-template-columns: repeat(5, minmax(56px, 1fr));
-  }
-
-  .backpack-seeds {
-    min-width: 0;
-    text-align: center;
+    grid-template-columns: repeat(4, minmax(56px, 1fr));
   }
 
   .game-layout {
     padding-bottom: 180px;
   }
+}
+
+.plotInnerGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+}
+
+.spotCell {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: monospace;
+  font-size: 18px;
+  border: 1px solid #8d6847;
+  border-radius: 4px;
+  color: #f2dfbd;
+  background: #533522;
+  cursor: pointer;
+  transition: filter 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.spotCell:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.spotCell.is-raw { background: #4a3020; }
+.spotCell.is-hoed { background: #795235; }
+.spotCell.is-watered,
+.spotCell.is-planted { background: #5b3b27; }
+.spotCell.is-ready { background: #5b3b27; color: #ffd27e; }
+.spotCell.is-locked-spot { background: #3e2a1e; color: #8f745c; }
+
+.spotCell.is-selected {
+  border-color: #f5ca93;
+  box-shadow: 0 0 0 2px rgba(245, 202, 147, 0.35);
+}
+
+.ascii-grid-tile.is-coop .spotCell {
+  opacity: 0.8;
 }

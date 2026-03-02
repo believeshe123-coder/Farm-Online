@@ -6,31 +6,39 @@ function getUnlockCost(unlockedPlotCount) {
   return BASE_UNLOCK_PLOT_COST * (unlockedPlotCount - 8);
 }
 
+function getStage(progress) {
+  if (progress < 0.34) {
+    return 'Early';
+  }
+
+  if (progress < 0.67) {
+    return 'Mid';
+  }
+
+  if (progress >= 1) {
+    return 'Ready';
+  }
+
+  return 'Mid';
+}
+
 export default function TileInspector({
-  selectedTile,
-  selectedTileIndex,
+  selected,
+  selectedSpot,
   tick,
   onHarvest,
-  onOpenCoop,
   isSelectedTileUnlocked,
   unlockedPlotCount,
 }) {
-  if (selectedTileIndex === null || !selectedTile) {
+  if (!selected || !selectedSpot) {
     return (
       <section className="panel">
         <h3>Tile Inspector</h3>
-        <p className="muted">Select a tile to see crop growth and actions.</p>
+        <p className="muted">Select a growing spot to inspect soil, crop, and growth.</p>
       </section>
     );
   }
 
-  const kind = selectedTile.kind ?? selectedTile.type ?? 'unknown';
-  const cropInfo = selectedTile.crop ?? selectedTile.cropId;
-  const buildingInfo = selectedTile.building ?? selectedTile.buildingId;
-  const crop = selectedTile.cropId ? CROPS[selectedTile.cropId] : null;
-  const growth = crop && selectedTile.kind === 'crop' ? Math.min(tick - selectedTile.plantedAtTick, crop.growTime) : null;
-  const showHarvest = Boolean(selectedTile.kind === 'crop' && selectedTile.isReady);
-  const showCoopButton = selectedTile.type === 'coop';
   const nextUnlockCost = getUnlockCost(unlockedPlotCount);
 
   if (!isSelectedTileUnlocked) {
@@ -38,7 +46,10 @@ export default function TileInspector({
       <section className="panel">
         <h3>Tile Inspector</h3>
         <p>
-          <strong>Tile:</strong> {selectedTileIndex + 1}
+          <strong>Plot:</strong> {selected.plotIndex + 1}
+        </p>
+        <p>
+          <strong>Spot:</strong> {selected.spotIndex + 1}
         </p>
         <p>
           <strong>Status:</strong> Locked plot
@@ -50,34 +61,34 @@ export default function TileInspector({
     );
   }
 
+  const crop = selectedSpot.crop ? CROPS[selectedSpot.crop.cropId] : null;
+  const progress = crop ? (tick - selectedSpot.crop.plantedAtTick) / crop.growTime : null;
+  const stage = progress === null ? 'None' : getStage(progress);
+  const canHarvest = Boolean(progress !== null && progress >= 1);
+
   return (
     <section className="panel">
       <h3>Tile Inspector</h3>
       <p>
-        <strong>Tile:</strong> {selectedTileIndex + 1}
+        <strong>Plot:</strong> {selected.plotIndex + 1}
       </p>
       <p>
-        <strong>Kind:</strong> {kind}
+        <strong>Spot:</strong> {selected.spotIndex + 1}
       </p>
       <p>
-        <strong>Crop:</strong> {cropInfo ? String(cropInfo) : 'None'}
+        <strong>Soil:</strong> {selectedSpot.soil}
       </p>
       <p>
-        <strong>Building:</strong> {buildingInfo ? String(buildingInfo) : 'None'}
+        <strong>Crop:</strong> {selectedSpot.crop ? selectedSpot.crop.cropId : 'None'}
       </p>
-      {crop && growth !== null && (
+      {crop && progress !== null && (
         <p>
-          <strong>Growth:</strong> {growth}/{crop.growTime} ticks
+          <strong>Progress:</strong> {Math.max(0, Math.min(100, Math.floor(progress * 100)))}% ({stage})
         </p>
       )}
-      {showHarvest && (
+      {canHarvest && (
         <button type="button" onClick={onHarvest}>
           Harvest
-        </button>
-      )}
-      {showCoopButton && (
-        <button type="button" onClick={onOpenCoop}>
-          Open Coop
         </button>
       )}
     </section>
