@@ -99,6 +99,7 @@ export default function App() {
             onOpenCoop={() => setIsCoopModalOpen(true)}
           />
           <ShopPanel
+            inventory={gameState.inventory}
             selectedTileIndex={gameState.selectedTileIndex}
             onPlant={(cropId) =>
               setGameState((prevState) => {
