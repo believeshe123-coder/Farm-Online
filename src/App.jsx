@@ -31,8 +31,11 @@ function withSelectedTool(gameState) {
   };
 }
 export default function App() {
-  const [view, setView] = useState('front');
-  const [gameState, setGameState] = useState(() => withSelectedTool(createNewGame()));
+  const [view, setView] = useState('game');
+  const [gameState, setGameState] = useState(() => {
+    const savedState = loadGame();
+    return withSelectedTool(savedState ?? createNewGame());
+  });
   const [isPaused, setIsPaused] = useState(false);
   const [isCoopModalOpen, setIsCoopModalOpen] = useState(false);
   const [frontMessage, setFrontMessage] = useState('');
