@@ -3,9 +3,9 @@ import HudBar from './ui/HudBar';
 import FrontView from './ui/FrontView';
 import AsciiBoard from './ui/AsciiBoard';
 import ShopPanel from './ui/ShopPanel';
-import InventoryPanel from './ui/InventoryPanel';
 import TileInspector from './ui/TileInspector';
 import CoopModal from './ui/CoopModal';
+import BackpackBar from './ui/BackpackBar';
 import { createNewGame } from './game/createNewGame';
 import { loadGame, saveGame } from './game/save';
 import { advanceTick } from './game/tick';
@@ -16,13 +16,23 @@ import {
   harvestCrop,
   placeBuilding,
   plantCrop,
-  sellItem,
   unlockPlot,
 } from './game/actions';
 
+
+function withSelectedTool(gameState) {
+  if (gameState.selectedTool === 'hoe' || gameState.selectedTool === 'water') {
+    return gameState;
+  }
+
+  return {
+    ...gameState,
+    selectedTool: 'hoe',
+  };
+}
 export default function App() {
   const [view, setView] = useState('front');
-  const [gameState, setGameState] = useState(() => createNewGame());
+  const [gameState, setGameState] = useState(() => withSelectedTool(createNewGame()));
   const [isPaused, setIsPaused] = useState(false);
   const [isCoopModalOpen, setIsCoopModalOpen] = useState(false);
   const [frontMessage, setFrontMessage] = useState('');
@@ -45,8 +55,31 @@ export default function App() {
     };
   }, [view, isPaused]);
 
+
+  useEffect(() => {
+    if (view !== 'game') {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key !== '1' && event.key !== '2') {
+        return;
+      }
+
+      setGameState((prevState) => ({
+        ...prevState,
+        selectedTool: event.key === '1' ? 'hoe' : 'water',
+      }));
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [view]);
+
   const handleStartGame = () => {
-    setGameState(createNewGame());
+    setGameState(withSelectedTool(createNewGame()));
     setIsPaused(false);
     setIsCoopModalOpen(false);
     setFrontMessage('');
@@ -56,7 +89,7 @@ export default function App() {
   const handleFrontLoadGame = () => {
     const savedState = loadGame();
     if (savedState) {
-      setGameState(savedState);
+      setGameState(withSelectedTool(savedState));
       setIsPaused(false);
       setIsCoopModalOpen(false);
       setFrontMessage('');
@@ -68,13 +101,13 @@ export default function App() {
   };
 
   const handleNewGame = () => {
-    setGameState(createNewGame());
+    setGameState(withSelectedTool(createNewGame()));
   };
 
   const handleLoadGame = () => {
     const savedState = loadGame();
     if (savedState) {
-      setGameState(savedState);
+      setGameState(withSelectedTool(savedState));
     }
   };
 
@@ -95,7 +128,6 @@ export default function App() {
     gameState.selectedTileIndex !== null && gameState.unlockedTiles[gameState.selectedTileIndex];
   const selectedCoop = selectedTile?.type === 'coop' ? selectedTile : null;
 
-  console.log('VIEW:', view);
 
   if (view === 'front') {
     return (
@@ -122,7 +154,7 @@ export default function App() {
         onLoadGame={handleLoadGame}
         onBackToFront={handleBackToFront}
       />
-      <main className="main-layout">
+      <main className="main-layout game-layout">
         <AsciiBoard
           tiles={gameState.tiles}
           gridSize={gameState.gridSize}
@@ -181,12 +213,18 @@ export default function App() {
             canUnlockPlot={canUnlockPlot}
             onUnlockPlot={() => setGameState((prevState) => unlockPlot(prevState))}
           />
-          <InventoryPanel
-            inventory={gameState.inventory}
-            onSell={(itemId, qty) => setGameState((prevState) => sellItem(prevState, itemId, qty))}
-          />
         </aside>
       </main>
+      <BackpackBar
+        inventory={gameState.inventory}
+        selectedTool={gameState.selectedTool}
+        onSelectTool={(tool) =>
+          setGameState((prevState) => ({
+            ...prevState,
+            selectedTool: tool,
+          }))
+        }
+      />
       {isCoopModalOpen && selectedCoop && gameState.selectedTileIndex !== null && (
         <CoopModal
           coop={selectedCoop}

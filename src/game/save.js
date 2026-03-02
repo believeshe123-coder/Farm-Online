@@ -14,6 +14,11 @@ function buildDefaultUnlockedTiles(gridSize) {
   });
 }
 
+
+function normalizeSelectedTool(tool) {
+  return tool === 'water' ? 'water' : 'hoe';
+}
+
 function isValidTile(tile) {
   return tile && typeof tile === 'object' && typeof tile.type === 'string';
 }
@@ -28,6 +33,7 @@ function isValidGameState(state) {
   if (!Array.isArray(state.unlockedTiles) || state.unlockedTiles.length !== state.tiles.length) return false;
   if (!state.unlockedTiles.every((isUnlocked) => typeof isUnlocked === 'boolean')) return false;
   if (!state.inventory || typeof state.inventory !== 'object' || Array.isArray(state.inventory)) return false;
+  if (state.selectedTool !== undefined && state.selectedTool !== 'hoe' && state.selectedTool !== 'water') return false;
   if (state.renderMode !== undefined && state.renderMode !== 'glyph') return false;
 
   return state.selectedTileIndex === null ||
@@ -63,6 +69,7 @@ function normalizeGameState(state) {
         ? state.selectedTileIndex
         : null,
     uiMessage: state.uiMessage ?? '',
+    selectedTool: normalizeSelectedTool(state.selectedTool),
   };
 }
 

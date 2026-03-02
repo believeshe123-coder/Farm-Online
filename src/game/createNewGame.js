@@ -21,6 +21,7 @@ export function createNewGame() {
       carrot_seed: 1,
     },
     selectedTileIndex: null,
+    selectedTool: 'hoe',
     uiMessage: '',
   };
 }
