@@ -1,4 +1,4 @@
-export default function ShopPanel({ selectedTileIndex, onPlant, nextExpansion, canExpand, onExpand }) {
+export default function ShopPanel({ selectedTileIndex, onPlant, onBuildCoop, nextExpansion, canExpand, onExpand }) {
   const canPlant = selectedTileIndex !== null;
 
   return (
@@ -10,6 +10,9 @@ export default function ShopPanel({ selectedTileIndex, onPlant, nextExpansion, c
         </button>
         <button type="button" disabled={!canPlant} onClick={() => onPlant('carrot')}>
           Plant Carrot
+        </button>
+        <button type="button" disabled={!canPlant} onClick={onBuildCoop}>
+          Build Chicken Coop
         </button>
         <button type="button" disabled={!canExpand} onClick={onExpand}>
           {nextExpansion

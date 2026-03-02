@@ -1,5 +1,29 @@
 import { CROPS, FARM_EXPANSION_TIERS } from './constants';
 
+const COMMON_CHICKEN_TRAITS = {
+  color: 'white',
+  size: 'medium',
+  eggRateTicks: 20,
+  rarity: 'common',
+};
+
+function createChicken(id, traits = COMMON_CHICKEN_TRAITS) {
+  return {
+    id,
+    species: 'chicken',
+    traits: { ...traits },
+    eggTimer: traits.eggRateTicks,
+  };
+}
+
+function createStarterChickens() {
+  return [createChicken('chicken-1'), createChicken('chicken-2')];
+}
+
+function chooseTrait(parentA, parentB, traitKey) {
+  return Math.random() < 0.5 ? parentA.traits[traitKey] : parentB.traits[traitKey];
+}
+
 function adjustInventory(inventory, itemId, delta) {
   const nextAmount = (inventory[itemId] ?? 0) + delta;
   if (nextAmount < 0) {
@@ -134,5 +158,65 @@ export function expand(state) {
 }
 
 export function placeBuilding(state, tileId, buildingId) {
-  return { ...state, lastAction: `build:${buildingId}@${tileId}` };
+  const tile = state.tiles[tileId];
+  if (!tile || tile.type !== 'empty') {
+    return state;
+  }
+
+  if (buildingId !== 'coop') {
+    return state;
+  }
+
+  const nextTiles = [...state.tiles];
+  nextTiles[tileId] = {
+    type: 'coop',
+    kind: 'building',
+    buildingId: 'coop',
+    animals: createStarterChickens(),
+  };
+
+  return {
+    ...state,
+    tiles: nextTiles,
+  };
+}
+
+export function breedChicken(state, coopId, parentAId, parentBId) {
+  const coop = state.tiles[coopId];
+  if (!coop || coop.type !== 'coop' || !Array.isArray(coop.animals)) {
+    return state;
+  }
+
+  const parentA = coop.animals.find((animal) => animal.id === parentAId && animal.species === 'chicken');
+  const parentB = coop.animals.find((animal) => animal.id === parentBId && animal.species === 'chicken');
+  if (!parentA || !parentB || parentA.id === parentB.id) {
+    return state;
+  }
+
+  const mutationTriggered = Math.random() < 0.03;
+  const inheritedTraits = {
+    color: chooseTrait(parentA, parentB, 'color'),
+    size: chooseTrait(parentA, parentB, 'size'),
+    eggRateTicks: chooseTrait(parentA, parentB, 'eggRateTicks'),
+    rarity: chooseTrait(parentA, parentB, 'rarity'),
+  };
+
+  if (mutationTriggered) {
+    inheritedTraits.rarity = 'rare';
+    inheritedTraits.color = 'gold';
+  }
+
+  const childId = `chicken-${state.tick}-${coop.animals.length + 1}-${Math.floor(Math.random() * 10000)}`;
+  const child = createChicken(childId, inheritedTraits);
+
+  const nextTiles = [...state.tiles];
+  nextTiles[coopId] = {
+    ...coop,
+    animals: [...coop.animals, child],
+  };
+
+  return {
+    ...state,
+    tiles: nextTiles,
+  };
 }

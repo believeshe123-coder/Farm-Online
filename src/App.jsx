@@ -4,14 +4,24 @@ import FarmGrid from './ui/FarmGrid';
 import ShopPanel from './ui/ShopPanel';
 import InventoryPanel from './ui/InventoryPanel';
 import TileInspector from './ui/TileInspector';
+import CoopModal from './ui/CoopModal';
 import { createNewGame } from './game/createNewGame';
 import { loadGame, saveGame } from './game/save';
 import { advanceTick } from './game/tick';
-import { expandFarm, getNextFarmExpansion, harvestCrop, plantCrop, sellItem } from './game/actions';
+import {
+  breedChicken,
+  expandFarm,
+  getNextFarmExpansion,
+  harvestCrop,
+  placeBuilding,
+  plantCrop,
+  sellItem,
+} from './game/actions';
 
 export default function App() {
   const [gameState, setGameState] = useState(() => loadGame() ?? createNewGame());
   const [isPaused, setIsPaused] = useState(false);
+  const [isCoopModalOpen, setIsCoopModalOpen] = useState(false);
 
   useEffect(() => {
     saveGame(gameState);
@@ -44,6 +54,9 @@ export default function App() {
 
   const nextExpansion = getNextFarmExpansion(gameState.gridSize);
   const canExpand = Boolean(nextExpansion) && gameState.money >= nextExpansion.cost;
+  const selectedTile =
+    gameState.selectedTileIndex === null ? null : gameState.tiles[gameState.selectedTileIndex];
+  const selectedCoop = selectedTile?.type === 'coop' ? selectedTile : null;
 
   return (
     <div className="app-shell">
@@ -71,9 +84,7 @@ export default function App() {
           <TileInspector
             selectedTileIndex={gameState.selectedTileIndex}
             selectedTile={
-              gameState.selectedTileIndex === null
-                ? null
-                : gameState.tiles[gameState.selectedTileIndex]
+              selectedTile
             }
             tick={gameState.tick}
             onHarvest={() =>
@@ -85,6 +96,7 @@ export default function App() {
                 return harvestCrop(prevState, prevState.selectedTileIndex);
               })
             }
+            onOpenCoop={() => setIsCoopModalOpen(true)}
           />
           <ShopPanel
             selectedTileIndex={gameState.selectedTileIndex}
@@ -97,6 +109,15 @@ export default function App() {
                 return plantCrop(prevState, prevState.selectedTileIndex, cropId);
               })
             }
+            onBuildCoop={() =>
+              setGameState((prevState) => {
+                if (prevState.selectedTileIndex === null) {
+                  return prevState;
+                }
+
+                return placeBuilding(prevState, prevState.selectedTileIndex, 'coop');
+              })
+            }
             nextExpansion={nextExpansion}
             canExpand={canExpand}
             onExpand={() => setGameState((prevState) => expandFarm(prevState))}
@@ -107,6 +128,17 @@ export default function App() {
           />
         </aside>
       </main>
+      {isCoopModalOpen && selectedCoop && gameState.selectedTileIndex !== null && (
+        <CoopModal
+          coop={selectedCoop}
+          onClose={() => setIsCoopModalOpen(false)}
+          onBreed={(parentAId, parentBId) =>
+            setGameState((prevState) =>
+              breedChicken(prevState, prevState.selectedTileIndex, parentAId, parentBId),
+            )
+          }
+        />
+      )}
     </div>
   );
 }
