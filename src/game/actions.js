@@ -1,4 +1,4 @@
-import { CROPS } from './constants';
+import { CROPS } from './constants.js';
 
 const BASE_UNLOCK_PLOT_COST = 25;
 
