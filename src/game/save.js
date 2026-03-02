@@ -27,7 +27,7 @@ function createDefaultPlot() {
   };
 }
 
-function normalizeSelectedTool(selectedTool) {
+function normalizeSelectedTool(selectedTool, hotbarItems = []) {
   if (selectedTool === 'hoe' || selectedTool === 'water') {
     return { kind: 'tool', id: selectedTool };
   }
@@ -36,12 +36,46 @@ function normalizeSelectedTool(selectedTool) {
     selectedTool &&
     typeof selectedTool === 'object' &&
     ((selectedTool.kind === 'tool' && (selectedTool.id === 'hoe' || selectedTool.id === 'water')) ||
-      (selectedTool.kind === 'item' && (selectedTool.id === 'wheat_seed' || selectedTool.id === 'carrot_seed')))
+      (selectedTool.kind === 'item' && typeof selectedTool.id === 'string' && hotbarItems.includes(selectedTool.id)))
   ) {
     return selectedTool;
   }
 
   return { kind: 'tool', id: 'hoe' };
+}
+
+function normalizeHotbarItems(hotbarItems, inventory) {
+  if (!Array.isArray(hotbarItems)) {
+    return ['wheat_seed', 'carrot_seed'];
+  }
+
+  const seen = new Set();
+  const normalized = [];
+
+  hotbarItems.forEach((itemId) => {
+    if (typeof itemId !== 'string' || seen.has(itemId) || normalized.length >= 2) {
+      return;
+    }
+
+    if ((inventory?.[itemId] ?? 0) <= 0) {
+      return;
+    }
+
+    seen.add(itemId);
+    normalized.push(itemId);
+  });
+
+  if (normalized.length === 0) {
+    if ((inventory?.wheat_seed ?? 0) > 0) {
+      normalized.push('wheat_seed');
+    }
+
+    if ((inventory?.carrot_seed ?? 0) > 0 && normalized.length < 2) {
+      normalized.push('carrot_seed');
+    }
+  }
+
+  return normalized;
 }
 
 function normalizeSelected(selected) {
@@ -151,16 +185,23 @@ function normalizeGameState(state) {
       : defaultUnlockedTiles[index];
   });
 
+  const normalizedInventory = state.inventory && typeof state.inventory === 'object' && !Array.isArray(state.inventory)
+    ? state.inventory
+    : {};
+  const hotbarItems = normalizeHotbarItems(state.hotbarItems, normalizedInventory);
+
   return {
     ...state,
     gridSize: FIXED_GRID_SIZE,
     tiles: normalizedTiles,
     plots: normalizePlots(state.plots),
     unlockedTiles: normalizedUnlockedTiles,
+    inventory: normalizedInventory,
+    hotbarItems,
     renderMode: state.renderMode ?? DEFAULT_RENDER_MODE,
     selected: normalizeSelected(state.selected),
     uiMessage: state.uiMessage ?? '',
-    selectedTool: normalizeSelectedTool(state.selectedTool),
+    selectedTool: normalizeSelectedTool(state.selectedTool, hotbarItems),
   };
 }
 

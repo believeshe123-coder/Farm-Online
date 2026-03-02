@@ -100,6 +100,40 @@ function spotToCropId(seedId) {
   return null;
 }
 
+function getHarvestSeedId(cropId) {
+  return `${cropId}_seed`;
+}
+
+function addItemToHotbar(hotbarItems = [], itemId, maxItemSlots = 2) {
+  if (hotbarItems.includes(itemId)) {
+    return hotbarItems;
+  }
+
+  if (hotbarItems.length >= maxItemSlots) {
+    return hotbarItems;
+  }
+
+  return [...hotbarItems, itemId];
+}
+
+function cleanupHotbarItems(hotbarItems = [], inventory = {}) {
+  return hotbarItems.filter((itemId) => (inventory[itemId] ?? 0) > 0);
+}
+
+function isSpotReadyToHarvest(state, spot) {
+  if (!spot?.crop) {
+    return false;
+  }
+
+  const crop = CROPS[spot.crop.cropId];
+  if (!crop) {
+    return false;
+  }
+
+  const growthProgress = (state.tick - spot.crop.plantedAtTick) / crop.growTime;
+  return growthProgress >= 1;
+}
+
 export function onSpotClick(state, plotIndex, spotIndex) {
   if (!isTileUnlocked(state, plotIndex)) {
     return state;
@@ -109,6 +143,14 @@ export function onSpotClick(state, plotIndex, spotIndex) {
   const spot = plot?.spots?.[spotIndex];
   if (!spot) {
     return state;
+  }
+
+  if (isSpotReadyToHarvest(state, spot)) {
+    const harvestedState = harvestSpot(state, plotIndex, spotIndex);
+    return {
+      ...harvestedState,
+      selected: { plotIndex, spotIndex },
+    };
   }
 
   const selectedHotbar = state.selectedTool;
@@ -157,10 +199,13 @@ export function onSpotClick(state, plotIndex, spotIndex) {
     spots: nextSpots,
   };
 
+  const nextHotbarItems = cleanupHotbarItems(state.hotbarItems, nextInventory);
+
   return {
     ...state,
     plots: nextPlots,
     inventory: nextInventory,
+    hotbarItems: nextHotbarItems,
     selected: { plotIndex, spotIndex },
   };
 }
@@ -176,13 +221,7 @@ export function harvestSpot(state, plotIndex, spotIndex) {
     return state;
   }
 
-  const crop = CROPS[spot.crop.cropId];
-  if (!crop) {
-    return state;
-  }
-
-  const growthProgress = (state.tick - spot.crop.plantedAtTick) / crop.growTime;
-  if (growthProgress < 1) {
+  if (!isSpotReadyToHarvest(state, spot)) {
     return state;
   }
 
@@ -199,15 +238,24 @@ export function harvestSpot(state, plotIndex, spotIndex) {
     spots: nextSpots,
   };
 
-  const nextInventory = adjustInventory(state.inventory, spot.crop.cropId, 1);
+  const nextInventoryWithCrop = adjustInventory(state.inventory, spot.crop.cropId, 1);
+  if (!nextInventoryWithCrop) {
+    return state;
+  }
+
+  const seedId = getHarvestSeedId(spot.crop.cropId);
+  const nextInventory = adjustInventory(nextInventoryWithCrop, seedId, 1);
   if (!nextInventory) {
     return state;
   }
+
+  const nextHotbarItems = addItemToHotbar(addItemToHotbar(state.hotbarItems, spot.crop.cropId), seedId);
 
   return {
     ...state,
     plots: nextPlots,
     inventory: nextInventory,
+    hotbarItems: nextHotbarItems,
   };
 }
 
