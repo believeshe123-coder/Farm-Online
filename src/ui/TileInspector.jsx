@@ -1,6 +1,20 @@
 import { CROPS } from '../game/constants';
 
-export default function TileInspector({ selectedTile, selectedTileIndex, tick, onHarvest, onOpenCoop }) {
+const BASE_UNLOCK_PLOT_COST = 25;
+
+function getUnlockCost(unlockedPlotCount) {
+  return BASE_UNLOCK_PLOT_COST * (unlockedPlotCount - 8);
+}
+
+export default function TileInspector({
+  selectedTile,
+  selectedTileIndex,
+  tick,
+  onHarvest,
+  onOpenCoop,
+  isSelectedTileUnlocked,
+  unlockedPlotCount,
+}) {
   if (selectedTileIndex === null || !selectedTile) {
     return (
       <section className="panel">
@@ -17,6 +31,24 @@ export default function TileInspector({ selectedTile, selectedTileIndex, tick, o
   const growth = crop && selectedTile.kind === 'crop' ? Math.min(tick - selectedTile.plantedAtTick, crop.growTime) : null;
   const showHarvest = Boolean(selectedTile.kind === 'crop' && selectedTile.isReady);
   const showCoopButton = selectedTile.type === 'coop';
+  const nextUnlockCost = getUnlockCost(unlockedPlotCount);
+
+  if (!isSelectedTileUnlocked) {
+    return (
+      <section className="panel">
+        <h3>Tile Inspector</h3>
+        <p>
+          <strong>Tile:</strong> {selectedTileIndex + 1}
+        </p>
+        <p>
+          <strong>Status:</strong> Locked plot
+        </p>
+        <p>
+          <strong>Unlock Cost:</strong> ${nextUnlockCost}
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="panel">

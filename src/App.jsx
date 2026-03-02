@@ -10,12 +10,13 @@ import { loadGame, saveGame } from './game/save';
 import { advanceTick } from './game/tick';
 import {
   breedChicken,
-  expandFarm,
-  getNextFarmExpansion,
+  getUnlockPlotCostForState,
+  getUnlockablePlotCount,
   harvestCrop,
   placeBuilding,
   plantCrop,
   sellItem,
+  unlockPlot,
 } from './game/actions';
 
 export default function App() {
@@ -52,10 +53,14 @@ export default function App() {
     }
   };
 
-  const nextExpansion = getNextFarmExpansion(gameState.gridSize);
-  const canExpand = Boolean(nextExpansion) && gameState.money >= nextExpansion.cost;
+  const unlockedPlotCount = gameState.unlockedTiles.filter(Boolean).length;
+  const totalPlots = gameState.tiles.length;
+  const unlockCost = getUnlockPlotCostForState(gameState);
+  const canUnlockPlot = getUnlockablePlotCount(gameState) > 0 && gameState.money >= unlockCost;
   const selectedTile =
     gameState.selectedTileIndex === null ? null : gameState.tiles[gameState.selectedTileIndex];
+  const isSelectedTileUnlocked =
+    gameState.selectedTileIndex !== null && gameState.unlockedTiles[gameState.selectedTileIndex];
   const selectedCoop = selectedTile?.type === 'coop' ? selectedTile : null;
 
   return (
@@ -63,6 +68,8 @@ export default function App() {
       <HudBar
         tick={gameState.tick}
         money={gameState.money}
+        unlockedPlotCount={unlockedPlotCount}
+        totalPlots={totalPlots}
         isPaused={isPaused}
         onTogglePause={() => setIsPaused((prevIsPaused) => !prevIsPaused)}
         onNewGame={handleNewGame}
@@ -72,6 +79,7 @@ export default function App() {
         <AsciiBoard
           tiles={gameState.tiles}
           gridSize={gameState.gridSize}
+          unlockedTiles={gameState.unlockedTiles}
           renderMode={gameState.renderMode}
           selectedTileIndex={gameState.selectedTileIndex}
           onSelectTile={(index) =>
@@ -88,6 +96,8 @@ export default function App() {
               selectedTile
             }
             tick={gameState.tick}
+            isSelectedTileUnlocked={isSelectedTileUnlocked}
+            unlockedPlotCount={unlockedPlotCount}
             onHarvest={() =>
               setGameState((prevState) => {
                 if (prevState.selectedTileIndex === null) {
@@ -120,9 +130,11 @@ export default function App() {
                 return placeBuilding(prevState, prevState.selectedTileIndex, 'coop');
               })
             }
-            nextExpansion={nextExpansion}
-            canExpand={canExpand}
-            onExpand={() => setGameState((prevState) => expandFarm(prevState))}
+            unlockedPlotCount={unlockedPlotCount}
+            totalPlots={totalPlots}
+            unlockCost={unlockCost}
+            canUnlockPlot={canUnlockPlot}
+            onUnlockPlot={() => setGameState((prevState) => unlockPlot(prevState))}
           />
           <InventoryPanel
             inventory={gameState.inventory}
