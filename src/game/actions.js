@@ -40,14 +40,28 @@ function adjustInventory(inventory, itemId, delta) {
   return nextInventory;
 }
 
+function isCropUnlocked(inventory, cropId) {
+  const crop = CROPS[cropId];
+  if (!crop) {
+    return false;
+  }
+
+  const requirement = crop.unlockRequirement;
+  if (!requirement) {
+    return true;
+  }
+
+  return (inventory[requirement.itemId] ?? 0) >= requirement.qty;
+}
+
 export function plantCrop(state, tileIndex, cropId) {
   const tile = state.tiles[tileIndex];
   const crop = CROPS[cropId];
-  if (!tile || !crop || tile.type !== 'empty') {
+  if (!tile || !crop || tile.type !== 'empty' || !isCropUnlocked(state.inventory, cropId)) {
     return state;
   }
 
-  const seedItemId = `${cropId}_seed`;
+  const seedItemId = cropId === 'blue_herb' ? 'hybrid_seed' : `${cropId}_seed`;
   const nextInventory = adjustInventory(state.inventory, seedItemId, -1);
   if (!nextInventory) {
     return state;
@@ -78,9 +92,16 @@ export function harvestCrop(state, tileIndex) {
   const nextTiles = [...state.tiles];
   nextTiles[tileIndex] = { type: 'empty' };
 
-  const nextInventory = adjustInventory(state.inventory, tile.cropId, 1);
+  let nextInventory = adjustInventory(state.inventory, tile.cropId, 1);
   if (!nextInventory) {
     return state;
+  }
+
+  if (tile.hybridMutationEligible && Math.random() < 0.05) {
+    nextInventory = adjustInventory(nextInventory, 'hybrid_seed', 1);
+    if (!nextInventory) {
+      return state;
+    }
   }
 
   return {

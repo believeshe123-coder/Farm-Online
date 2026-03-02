@@ -1,6 +1,16 @@
 export const CROPS = {
   wheat: { name: 'Wheat', growTime: 10, sellPrice: 5 },
   carrot: { name: 'Carrot', growTime: 15, sellPrice: 8 },
+  blue_herb: {
+    name: 'Blue Herb',
+    growTime: 18,
+    sellPrice: 14,
+    unlockRequirement: {
+      itemId: 'hybrid_seed',
+      qty: 1,
+      text: 'Requires 1 hybrid_seed owned',
+    },
+  },
 };
 
 export const ANIMALS = {
