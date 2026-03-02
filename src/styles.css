@@ -198,3 +198,32 @@ h3 {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.front-view-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.front-view-panel {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 0.9rem;
+  justify-items: start;
+  box-shadow: 0 0 18px rgba(92, 255, 130, 0.2);
+}
+
+.front-view-panel h1 {
+  margin: 0;
+}
+
+.front-view-help ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.front-view-message {
+  margin: 0;
+  color: #bfffc8;
+}

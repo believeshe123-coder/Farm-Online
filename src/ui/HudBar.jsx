@@ -7,6 +7,7 @@ export default function HudBar({
   onTogglePause,
   onNewGame,
   onLoadGame,
+  onBackToFront,
 }) {
   return (
     <header className="panel hud">
@@ -18,6 +19,7 @@ export default function HudBar({
         <button onClick={onTogglePause}>{isPaused ? 'Resume' : 'Pause'}</button>
         <button onClick={onNewGame}>New Game</button>
         <button onClick={onLoadGame}>Load Game</button>
+        <button onClick={onBackToFront}>Back to Front</button>
       </div>
     </header>
   );
