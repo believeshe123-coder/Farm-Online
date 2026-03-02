@@ -57,19 +57,28 @@ h3 {
 }
 
 .farm-grid {
+  --tile-size: 3rem;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0.4rem;
+  justify-content: start;
 }
 
 .tile {
-  aspect-ratio: 1;
+  width: var(--tile-size);
+  height: var(--tile-size);
+  padding: 0;
   display: grid;
   place-items: center;
   border-radius: 6px;
   background: #3d5d3f;
   border: 1px solid #4f7a53;
   font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.tile.selected {
+  outline: 2px solid #f2d27a;
+  outline-offset: 1px;
 }
 
 .hud {
