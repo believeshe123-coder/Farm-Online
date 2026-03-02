@@ -13,9 +13,11 @@ export default function ShopPanel({
   selectedTileIndex,
   onPlant,
   onBuildCoop,
-  nextExpansion,
-  canExpand,
-  onExpand,
+  unlockedPlotCount,
+  totalPlots,
+  unlockCost,
+  canUnlockPlot,
+  onUnlockPlot,
 }) {
   const canPlant = selectedTileIndex !== null;
   const cropEntries = Object.entries(CROPS);
@@ -24,6 +26,7 @@ export default function ShopPanel({
     <section className="panel">
       <h3>Shop</h3>
       <div className="stack-sm">
+        <p className="muted">Plots: {unlockedPlotCount}/{totalPlots}</p>
         {cropEntries.map(([cropId, crop]) => {
           const unlocked = isCropUnlocked(inventory, crop);
           const lockText = crop.unlockRequirement?.text;
@@ -38,10 +41,8 @@ export default function ShopPanel({
         <button type="button" disabled={!canPlant} onClick={onBuildCoop}>
           Build Chicken Coop
         </button>
-        <button type="button" disabled={!canExpand} onClick={onExpand}>
-          {nextExpansion
-            ? `Expand Farm (${nextExpansion.to}x${nextExpansion.to}) - $${nextExpansion.cost}`
-            : 'Expand Farm (Max size reached)'}
+        <button type="button" disabled={!canUnlockPlot} onClick={onUnlockPlot}>
+          {unlockedPlotCount >= totalPlots ? 'Unlock Plot (All plots unlocked)' : `Unlock Plot - $${unlockCost}`}
         </button>
       </div>
     </section>

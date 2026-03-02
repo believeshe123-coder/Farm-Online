@@ -1,4 +1,52 @@
-import { CROPS, FARM_EXPANSION_TIERS } from './constants';
+import { CROPS } from './constants';
+
+const BASE_UNLOCK_PLOT_COST = 25;
+
+function isTileUnlocked(state, tileIndex) {
+  return Boolean(state.unlockedTiles?.[tileIndex]);
+}
+
+function withUiMessage(state, message) {
+  return {
+    ...state,
+    uiMessage: message,
+  };
+}
+
+function getUnlockedPlotCount(state) {
+  return state.unlockedTiles.filter(Boolean).length;
+}
+
+function getUnlockPlotCost(state) {
+  return BASE_UNLOCK_PLOT_COST * (getUnlockedPlotCount(state) - 8);
+}
+
+function getLockedTilesByCenterDistance(gridSize, unlockedTiles) {
+  const center = (gridSize - 1) / 2;
+
+  return unlockedTiles
+    .map((isUnlocked, index) => ({
+      index,
+      isUnlocked,
+      row: Math.floor(index / gridSize),
+      col: index % gridSize,
+    }))
+    .filter((tile) => !tile.isUnlocked)
+    .sort((a, b) => {
+      const aDistance = Math.abs(a.row - center) + Math.abs(a.col - center);
+      const bDistance = Math.abs(b.row - center) + Math.abs(b.col - center);
+      if (aDistance !== bDistance) {
+        return aDistance - bDistance;
+      }
+
+      if (a.row !== b.row) {
+        return a.row - b.row;
+      }
+
+      return a.col - b.col;
+    })
+    .map((tile) => tile.index);
+}
 
 const COMMON_CHICKEN_TRAITS = {
   color: 'white',
@@ -55,6 +103,10 @@ function isCropUnlocked(inventory, cropId) {
 }
 
 export function plantCrop(state, tileIndex, cropId) {
+  if (!isTileUnlocked(state, tileIndex)) {
+    return withUiMessage(state, 'That plot is locked.');
+  }
+
   const tile = state.tiles[tileIndex];
   const crop = CROPS[cropId];
   if (!tile || !crop || tile.type !== 'empty' || !isCropUnlocked(state.inventory, cropId)) {
@@ -84,6 +136,10 @@ export function plantCrop(state, tileIndex, cropId) {
 }
 
 export function harvestCrop(state, tileIndex) {
+  if (!isTileUnlocked(state, tileIndex)) {
+    return withUiMessage(state, 'That plot is locked.');
+  }
+
   const tile = state.tiles[tileIndex];
   if (!tile || tile.kind !== 'crop' || !tile.isReady) {
     return state;
@@ -133,33 +189,12 @@ export function sellItem(state, itemId, qty = 1) {
   };
 }
 
-export function getNextFarmExpansion(gridSize) {
-  return FARM_EXPANSION_TIERS.find((tier) => tier.from === gridSize) ?? null;
+export function getNextFarmExpansion(_gridSize) {
+  return null;
 }
 
 export function expandFarm(state) {
-  const nextTier = getNextFarmExpansion(state.gridSize);
-  if (!nextTier || state.money < nextTier.cost) {
-    return state;
-  }
-
-  const nextTiles = Array.from({ length: nextTier.to * nextTier.to }, (_, index) => {
-    const x = index % nextTier.to;
-    const y = Math.floor(index / nextTier.to);
-
-    if (x < state.gridSize && y < state.gridSize) {
-      return state.tiles[y * state.gridSize + x];
-    }
-
-    return { type: 'empty' };
-  });
-
-  return {
-    ...state,
-    gridSize: nextTier.to,
-    tiles: nextTiles,
-    money: state.money - nextTier.cost,
-  };
+  return state;
 }
 
 export function plant(state, tileId, cropId) {
@@ -179,6 +214,10 @@ export function expand(state) {
 }
 
 export function placeBuilding(state, tileId, buildingId) {
+  if (!isTileUnlocked(state, tileId)) {
+    return withUiMessage(state, 'That plot is locked.');
+  }
+
   const tile = state.tiles[tileId];
   if (!tile || tile.type !== 'empty') {
     return state;
@@ -200,6 +239,37 @@ export function placeBuilding(state, tileId, buildingId) {
     ...state,
     tiles: nextTiles,
   };
+}
+
+export function unlockPlot(state) {
+  const lockedTileIndices = getLockedTilesByCenterDistance(state.gridSize, state.unlockedTiles);
+  if (lockedTileIndices.length === 0) {
+    return state;
+  }
+
+  const unlockCost = getUnlockPlotCost(state);
+  if (state.money < unlockCost) {
+    return state;
+  }
+
+  const tileToUnlock = lockedTileIndices[0];
+  const nextUnlockedTiles = [...state.unlockedTiles];
+  nextUnlockedTiles[tileToUnlock] = true;
+
+  return {
+    ...state,
+    money: state.money - unlockCost,
+    unlockedTiles: nextUnlockedTiles,
+    uiMessage: '',
+  };
+}
+
+export function getUnlockPlotCostForState(state) {
+  return getUnlockPlotCost(state);
+}
+
+export function getUnlockablePlotCount(state) {
+  return getLockedTilesByCenterDistance(state.gridSize, state.unlockedTiles).length;
 }
 
 export function breedChicken(state, coopId, parentAId, parentBId) {

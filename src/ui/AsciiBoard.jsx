@@ -1,9 +1,10 @@
 import { buildAsciiBoard } from '../render/asciiBoard';
 
-export default function AsciiBoard({ tiles, gridSize, selectedTileIndex, onSelectTile }) {
+export default function AsciiBoard({ tiles, gridSize, unlockedTiles, selectedTileIndex, onSelectTile }) {
   const { headerLines, boardLines } = buildAsciiBoard({
     tiles,
     gridSize,
+    unlockedTiles,
     selectedTileIndex,
   });
 

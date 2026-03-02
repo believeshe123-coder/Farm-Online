@@ -1,6 +1,8 @@
 export default function HudBar({
   tick,
   money,
+  unlockedPlotCount,
+  totalPlots,
   isPaused,
   onTogglePause,
   onNewGame,
@@ -10,7 +12,7 @@ export default function HudBar({
     <header className="panel hud">
       <div>
         <h2>Farm Online</h2>
-        <p className="muted">Money: ${money} · Tick: {tick}</p>
+        <p className="muted">Money: ${money} · Tick: {tick} · Plots: {unlockedPlotCount}/{totalPlots}</p>
       </div>
       <div>
         <button onClick={onTogglePause}>{isPaused ? 'Resume' : 'Pause'}</button>

@@ -1,6 +1,11 @@
 const TILE_WIDTH = 5;
+const TILE_HEIGHT = 5;
 
-function tileToAsciiCell(tile) {
+function tileToAsciiCell(tile, isUnlocked) {
+  if (!isUnlocked) {
+    return 'XXXXX';
+  }
+
   switch (tile.type) {
     case 'growing':
       return '#####';
@@ -17,35 +22,39 @@ function tileToAsciiCell(tile) {
 }
 
 export function buildAsciiBoard(state) {
-  const { tiles, gridSize, selectedTileIndex } = state;
+  const { tiles, gridSize, selectedTileIndex, unlockedTiles } = state;
   const horizontalLine = `+${'-'.repeat(gridSize * TILE_WIDTH + (gridSize - 1))}+`;
   const boardLines = [[{ text: horizontalLine, className: 'ascii-border' }]];
 
   for (let row = 0; row < gridSize; row += 1) {
-    const rowTokens = [{ text: '|', className: 'ascii-border' }];
+    for (let tileTextRow = 0; tileTextRow < TILE_HEIGHT; tileTextRow += 1) {
+      const rowTokens = [{ text: '|', className: 'ascii-border' }];
 
-    for (let col = 0; col < gridSize; col += 1) {
-      const index = row * gridSize + col;
-      const tile = tiles[index];
-      const classes = ['ascii-cell'];
+      for (let col = 0; col < gridSize; col += 1) {
+        const index = row * gridSize + col;
+        const tile = tiles[index];
+        const isUnlocked = Boolean(unlockedTiles?.[index]);
+        const classes = ['ascii-cell'];
 
-      if (tile?.type === 'ready') {
-        classes.push('is-ready');
+        if (tile?.type === 'ready') {
+          classes.push('is-ready');
+        }
+
+        if (selectedTileIndex === index) {
+          classes.push('is-selected');
+        }
+
+        rowTokens.push({ text: tileToAsciiCell(tile, isUnlocked), className: classes.join(' ') });
+
+        if (col < gridSize - 1) {
+          rowTokens.push({ text: '|', className: 'ascii-border' });
+        }
       }
 
-      if (selectedTileIndex === index) {
-        classes.push('is-selected');
-      }
-
-      rowTokens.push({ text: tileToAsciiCell(tile), className: classes.join(' ') });
-
-      if (col < gridSize - 1) {
-        rowTokens.push({ text: '|', className: 'ascii-border' });
-      }
+      rowTokens.push({ text: '|', className: 'ascii-border' });
+      boardLines.push(rowTokens);
     }
 
-    rowTokens.push({ text: '|', className: 'ascii-border' });
-    boardLines.push(rowTokens);
     boardLines.push([{ text: horizontalLine, className: 'ascii-border' }]);
   }
 
