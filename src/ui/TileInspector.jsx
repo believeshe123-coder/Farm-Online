@@ -1,4 +1,6 @@
-export default function TileInspector({ selectedTile, selectedTileIndex }) {
+import { CROPS } from '../game/constants';
+
+export default function TileInspector({ selectedTile, selectedTileIndex, tick, onHarvest }) {
   if (selectedTileIndex === null || !selectedTile) {
     return (
       <section className="panel">
@@ -8,9 +10,12 @@ export default function TileInspector({ selectedTile, selectedTileIndex }) {
     );
   }
 
-  const kind = selectedTile.type ?? 'unknown';
+  const kind = selectedTile.kind ?? selectedTile.type ?? 'unknown';
   const cropInfo = selectedTile.crop ?? selectedTile.cropId;
   const buildingInfo = selectedTile.building ?? selectedTile.buildingId;
+  const crop = selectedTile.cropId ? CROPS[selectedTile.cropId] : null;
+  const growth = crop && selectedTile.kind === 'crop' ? Math.min(tick - selectedTile.plantedAtTick, crop.growTime) : null;
+  const showHarvest = Boolean(selectedTile.kind === 'crop' && selectedTile.isReady);
 
   return (
     <section className="panel">
@@ -27,6 +32,16 @@ export default function TileInspector({ selectedTile, selectedTileIndex }) {
       <p>
         <strong>Building:</strong> {buildingInfo ? String(buildingInfo) : 'None'}
       </p>
+      {crop && growth !== null && (
+        <p>
+          <strong>Growth:</strong> {growth}/{crop.growTime} ticks
+        </p>
+      )}
+      {showHarvest && (
+        <button type="button" onClick={onHarvest}>
+          Harvest
+        </button>
+      )}
     </section>
   );
 }

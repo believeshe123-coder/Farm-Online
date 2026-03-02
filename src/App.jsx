@@ -7,6 +7,7 @@ import TileInspector from './ui/TileInspector';
 import { createNewGame } from './game/createNewGame';
 import { loadGame, saveGame } from './game/save';
 import { advanceTick } from './game/tick';
+import { harvestCrop, plantCrop, sellItem } from './game/actions';
 
 export default function App() {
   const [gameState, setGameState] = useState(() => loadGame() ?? createNewGame());
@@ -71,9 +72,33 @@ export default function App() {
                 ? null
                 : gameState.tiles[gameState.selectedTileIndex]
             }
+            tick={gameState.tick}
+            onHarvest={() =>
+              setGameState((prevState) => {
+                if (prevState.selectedTileIndex === null) {
+                  return prevState;
+                }
+
+                return harvestCrop(prevState, prevState.selectedTileIndex);
+              })
+            }
           />
-          <ShopPanel />
-          <InventoryPanel />
+          <ShopPanel
+            selectedTileIndex={gameState.selectedTileIndex}
+            onPlant={(cropId) =>
+              setGameState((prevState) => {
+                if (prevState.selectedTileIndex === null) {
+                  return prevState;
+                }
+
+                return plantCrop(prevState, prevState.selectedTileIndex, cropId);
+              })
+            }
+          />
+          <InventoryPanel
+            inventory={gameState.inventory}
+            onSell={(itemId, qty) => setGameState((prevState) => sellItem(prevState, itemId, qty))}
+          />
         </aside>
       </main>
     </div>

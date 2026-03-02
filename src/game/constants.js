@@ -1,6 +1,6 @@
 export const CROPS = {
-  turnip: { name: 'Turnip', buyCost: 4, sellValue: 8, growTicks: 2 },
-  corn: { name: 'Corn', buyCost: 8, sellValue: 15, growTicks: 4 },
+  wheat: { name: 'Wheat', growTime: 10, sellPrice: 5 },
+  carrot: { name: 'Carrot', growTime: 15, sellPrice: 8 },
 };
 
 export const ANIMALS = {
