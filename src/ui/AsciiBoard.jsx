@@ -1,47 +1,37 @@
-import { buildAsciiBoard } from '../render/asciiBoard';
+import { tileToAsciiCell } from '../render/asciiBoard';
 
 export default function AsciiBoard({ tiles, gridSize, unlockedTiles, selectedTileIndex, onSelectTile }) {
-  const { headerLines, boardLines } = buildAsciiBoard({
-    tiles,
-    gridSize,
-    unlockedTiles,
-    selectedTileIndex,
-  });
-
   return (
     <section className="grid-panel ascii-panel">
       <h3>Farm Grid</h3>
-      <div className="ascii-scroll-wrap">
-        <pre className="ascii-header" aria-label="Farm title">
-          {headerLines.map((line, index) => (
-            <span key={`header-${index}`} className="ascii-line">
-              {line}
-            </span>
-          ))}
-        </pre>
-        <div className="ascii-board-wrap" style={{ '--grid-size': gridSize }}>
-          <pre className="ascii-board" aria-label="ASCII farm board">
-            {boardLines.map((lineTokens, lineIndex) => (
-              <span className="ascii-line" key={`line-${lineIndex}`}>
-                {lineTokens.map((token, tokenIndex) => (
-                  <span key={`line-${lineIndex}-token-${tokenIndex}`} className={token.className}>
-                    {token.text}
-                  </span>
-                ))}
-              </span>
-            ))}
-          </pre>
-          <div className="ascii-grid-overlay" aria-hidden="true">
-            {tiles.map((_, index) => (
+      <div className="ascii-grid-wrap">
+        <div className="ascii-grid" style={{ gridTemplateColumns: `repeat(${gridSize}, 1fr)` }}>
+          {tiles.map((tile, index) => {
+            const isUnlocked = Boolean(unlockedTiles?.[index]);
+            const isReady = tile?.type === 'ready';
+            const isSelected = selectedTileIndex === index;
+            const tileAscii = tileToAsciiCell(tile, isUnlocked);
+            const fillGlyph = tileAscii[0];
+
+            return (
               <button
                 key={index}
                 type="button"
-                className="ascii-grid-hitbox"
-                title={`Tile ${index + 1}`}
+                className={`ascii-grid-tile${isUnlocked ? '' : ' is-locked'}${isReady ? ' is-ready' : ''}${isSelected ? ' is-selected' : ''}`}
+                title={`Tile ${index + 1}: ${tileAscii}`}
                 onClick={() => onSelectTile(index)}
-              />
-            ))}
-          </div>
+              >
+                <span className="ascii-grid-pattern" aria-hidden="true">
+                  {Array.from({ length: 25 }, (_, fillIndex) => (
+                    <span key={`${index}-${fillIndex}`} className="ascii-grid-glyph">
+                      {fillGlyph}
+                    </span>
+                  ))}
+                </span>
+                <span className="sr-only">{tileAscii}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </section>
