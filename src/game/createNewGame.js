@@ -34,6 +34,7 @@ export function createNewGame() {
       wheat_seed: 3,
       carrot_seed: 1,
     },
+    hotbarItems: ['wheat_seed', 'carrot_seed'],
     selected: null,
     selectedTool: { kind: 'tool', id: 'hoe' },
     uiMessage: '',

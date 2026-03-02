@@ -20,12 +20,13 @@ import {
 } from './game/actions';
 
 function withSelectedTool(gameState) {
+  const hotbarItems = Array.isArray(gameState.hotbarItems) ? gameState.hotbarItems : [];
+
   if (
     gameState.selectedTool &&
     typeof gameState.selectedTool === 'object' &&
     ((gameState.selectedTool.kind === 'tool' && (gameState.selectedTool.id === 'hoe' || gameState.selectedTool.id === 'water')) ||
-      (gameState.selectedTool.kind === 'item' &&
-        (gameState.selectedTool.id === 'wheat_seed' || gameState.selectedTool.id === 'carrot_seed')))
+      (gameState.selectedTool.kind === 'item' && hotbarItems.includes(gameState.selectedTool.id)))
   ) {
     return gameState;
   }
@@ -80,13 +81,16 @@ export default function App() {
         return;
       }
 
-      if (event.key === '3') {
-        setGameState((prevState) => ({ ...prevState, selectedTool: { kind: 'item', id: 'wheat_seed' } }));
-        return;
-      }
+      if (event.key === '3' || event.key === '4') {
+        setGameState((prevState) => {
+          const slotIndex = Number(event.key) - 3;
+          const itemId = prevState.hotbarItems?.[slotIndex];
+          if (!itemId) {
+            return prevState;
+          }
 
-      if (event.key === '4') {
-        setGameState((prevState) => ({ ...prevState, selectedTool: { kind: 'item', id: 'carrot_seed' } }));
+          return { ...prevState, selectedTool: { kind: 'item', id: itemId } };
+        });
       }
     };
 
@@ -225,6 +229,7 @@ export default function App() {
       </main>
       <BackpackBar
         inventory={gameState.inventory}
+        hotbarItems={gameState.hotbarItems}
         selectedHotbar={gameState.selectedTool}
         onSelectHotbar={(selection) =>
           setGameState((prevState) => ({
