@@ -4,6 +4,7 @@ export function createNewGame() {
   return {
     tick: 0,
     money: 10,
+    renderMode: 'glyph',
     gridSize,
     tiles: Array.from({ length: gridSize * gridSize }, () => ({ type: 'empty' })),
     inventory: {

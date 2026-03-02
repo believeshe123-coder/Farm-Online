@@ -1,4 +1,5 @@
 export function tileToGlyph(tile) {
+  // Single source of truth for tile glyph/icon selection.
   const glyphMap = {
     empty: '🟩',
     tilled: '🟫',

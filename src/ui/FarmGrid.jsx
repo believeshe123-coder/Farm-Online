@@ -1,6 +1,6 @@
 import { tileToGlyph } from '../render/tileToGlyph';
 
-export default function FarmGrid({ tiles, gridSize, selectedTileIndex, onSelectTile }) {
+export default function FarmGrid({ tiles, gridSize, selectedTileIndex, onSelectTile, renderMode }) {
   return (
     <section className="grid-panel">
       <h3>Farm Grid</h3>
@@ -13,7 +13,12 @@ export default function FarmGrid({ tiles, gridSize, selectedTileIndex, onSelectT
             title={`Tile ${index + 1}`}
             onClick={() => onSelectTile(index)}
           >
-            {tileToGlyph(tile)}
+            {renderMode === 'glyph' ? (
+              tileToGlyph(tile)
+            ) : (
+              // TODO: Render tile sprites when sprite assets and renderer are available.
+              tileToGlyph(tile)
+            )}
           </button>
         ))}
       </div>
