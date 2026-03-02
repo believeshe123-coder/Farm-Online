@@ -1,29 +1,30 @@
-const TILE_WIDTH = 5;
+const TILE_WIDTH = 7;
 const TILE_HEIGHT = 5;
 
 function tileToAsciiCell(tile, isUnlocked) {
   if (!isUnlocked) {
-    return 'XXXXX';
+    return 'XXXXXXX';
   }
 
   switch (tile.type) {
     case 'growing':
-      return '#####';
+      return '#######';
     case 'ready':
-      return '$$$$$';
+      return '$$$$$$$';
     case 'coop':
-      return 'CCCCC';
+      return 'CCCCCCC';
     case 'tilled':
-      return '.....';
+      return '.......';
     case 'empty':
     default:
-      return '@@@@@';
+      return '@@@@@@@';
   }
 }
 
 export function buildAsciiBoard(state) {
   const { tiles, gridSize, selectedTileIndex, unlockedTiles } = state;
-  const horizontalLine = `+${'-'.repeat(gridSize * TILE_WIDTH + (gridSize - 1))}+`;
+  const totalInnerWidth = gridSize * TILE_WIDTH + (gridSize - 1);
+  const horizontalLine = `+${'-'.repeat(totalInnerWidth)}+`;
   const boardLines = [[{ text: horizontalLine, className: 'ascii-border' }]];
 
   for (let row = 0; row < gridSize; row += 1) {
