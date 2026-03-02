@@ -72,6 +72,7 @@ export default function App() {
         <FarmGrid
           tiles={gameState.tiles}
           gridSize={gameState.gridSize}
+          renderMode={gameState.renderMode}
           selectedTileIndex={gameState.selectedTileIndex}
           onSelectTile={(index) =>
             setGameState((prevState) => ({
