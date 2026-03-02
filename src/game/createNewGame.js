@@ -1,15 +1,12 @@
 export function createNewGame() {
+  const gridSize = 5;
+
   return {
-    money: 50,
     tick: 0,
+    money: 10,
+    gridSize,
+    tiles: Array.from({ length: gridSize * gridSize }, () => ({ type: 'empty' })),
     inventory: {},
-    farm: {
-      width: 6,
-      height: 6,
-      tiles: Array.from({ length: 36 }, (_, id) => ({
-        id,
-        type: 'empty',
-      })),
-    },
+    selectedTileIndex: null,
   };
 }

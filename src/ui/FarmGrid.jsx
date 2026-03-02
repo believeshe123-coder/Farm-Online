@@ -1,8 +1,6 @@
 import { tileToGlyph } from '../render/tileToGlyph';
 
-const tiles = Array.from({ length: 36 }, () => ({ type: 'empty' }));
-
-export default function FarmGrid() {
+export default function FarmGrid({ tiles }) {
   return (
     <section className="grid-panel">
       <h3>Farm Grid</h3>
