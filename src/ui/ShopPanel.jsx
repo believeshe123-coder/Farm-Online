@@ -1,8 +1,17 @@
-export default function ShopPanel() {
+export default function ShopPanel({ selectedTileIndex, onPlant }) {
+  const canPlant = selectedTileIndex !== null;
+
   return (
     <section className="panel">
       <h3>Shop</h3>
-      <p className="muted">Seed packs, farm expansion, and buildings will go here.</p>
+      <div className="stack-sm">
+        <button type="button" disabled={!canPlant} onClick={() => onPlant('wheat')}>
+          Plant Wheat
+        </button>
+        <button type="button" disabled={!canPlant} onClick={() => onPlant('carrot')}>
+          Plant Carrot
+        </button>
+      </div>
     </section>
   );
 }

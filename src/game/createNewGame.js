@@ -6,7 +6,10 @@ export function createNewGame() {
     money: 10,
     gridSize,
     tiles: Array.from({ length: gridSize * gridSize }, () => ({ type: 'empty' })),
-    inventory: {},
+    inventory: {
+      wheat_seed: 3,
+      carrot_seed: 1,
+    },
     selectedTileIndex: null,
   };
 }
