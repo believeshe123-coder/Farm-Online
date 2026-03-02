@@ -1,4 +1,4 @@
-import { CROPS } from './constants';
+import { CROPS, FARM_EXPANSION_TIERS } from './constants';
 
 function adjustInventory(inventory, itemId, delta) {
   const nextAmount = (inventory[itemId] ?? 0) + delta;
@@ -85,6 +85,35 @@ export function sellItem(state, itemId, qty = 1) {
     ...state,
     inventory: nextInventory,
     money: state.money + itemCrop.sellPrice * qty,
+  };
+}
+
+export function getNextFarmExpansion(gridSize) {
+  return FARM_EXPANSION_TIERS.find((tier) => tier.from === gridSize) ?? null;
+}
+
+export function expandFarm(state) {
+  const nextTier = getNextFarmExpansion(state.gridSize);
+  if (!nextTier || state.money < nextTier.cost) {
+    return state;
+  }
+
+  const nextTiles = Array.from({ length: nextTier.to * nextTier.to }, (_, index) => {
+    const x = index % nextTier.to;
+    const y = Math.floor(index / nextTier.to);
+
+    if (x < state.gridSize && y < state.gridSize) {
+      return state.tiles[y * state.gridSize + x];
+    }
+
+    return { type: 'empty' };
+  });
+
+  return {
+    ...state,
+    gridSize: nextTier.to,
+    tiles: nextTiles,
+    money: state.money - nextTier.cost,
   };
 }
 

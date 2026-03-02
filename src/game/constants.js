@@ -8,6 +8,11 @@ export const ANIMALS = {
 };
 
 export const COSTS = {
-  farmExpansion: 100,
   chickenCoop: 150,
 };
+
+export const FARM_EXPANSION_TIERS = [
+  { from: 5, to: 7, cost: 50 },
+  { from: 7, to: 10, cost: 200 },
+  { from: 10, to: 15, cost: 800 },
+];
