@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import HudBar from './ui/HudBar';
-import FarmGrid from './ui/FarmGrid';
+import AsciiBoard from './ui/AsciiBoard';
 import ShopPanel from './ui/ShopPanel';
 import InventoryPanel from './ui/InventoryPanel';
 import TileInspector from './ui/TileInspector';
@@ -69,7 +69,7 @@ export default function App() {
         onLoadGame={handleLoadGame}
       />
       <main className="main-layout">
-        <FarmGrid
+        <AsciiBoard
           tiles={gameState.tiles}
           gridSize={gameState.gridSize}
           renderMode={gameState.renderMode}

@@ -1,7 +1,7 @@
 :root {
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  color: #f4f8f2;
-  background: #1e2b20;
+  font-family: 'Courier New', Courier, monospace;
+  color: #a8ffb0;
+  background: #0b1b12;
 }
 
 * {
@@ -11,7 +11,9 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: linear-gradient(180deg, #213424, #172218);
+  background: #0b1b12;
+  color: #a8ffb0;
+  text-shadow: 0 0 6px rgba(92, 255, 130, 0.28);
 }
 
 #root {
@@ -40,8 +42,8 @@ body {
 
 .panel,
 .grid-panel {
-  background: rgba(19, 32, 21, 0.9);
-  border: 1px solid #3f5e40;
+  background: rgba(11, 27, 18, 0.92);
+  border: 1px solid #2a8f45;
   border-radius: 10px;
   padding: 0.9rem;
 }
@@ -53,32 +55,83 @@ h3 {
 }
 
 .muted {
-  color: #b9c9b5;
+  color: #89ce91;
 }
 
-.farm-grid {
-  --tile-size: 3rem;
+.ascii-panel {
+  overflow: hidden;
+}
+
+.ascii-scroll-wrap {
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.ascii-header,
+.ascii-board {
+  margin: 0;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.25;
+  white-space: pre;
+}
+
+.ascii-header {
+  margin-bottom: 0.3rem;
+}
+
+.ascii-board-wrap {
+  --cell-width: 5ch;
+  --separator-width: 1ch;
+  --line-height: 1.25em;
+  position: relative;
+  display: inline-block;
+}
+
+.ascii-line {
+  display: block;
+  height: var(--line-height);
+}
+
+.ascii-border {
+  color: #74d888;
+}
+
+.ascii-cell {
+  display: inline-block;
+  width: var(--cell-width);
+}
+
+.ascii-cell.is-ready {
+  color: #d7ff9d;
+}
+
+.ascii-cell.is-selected {
+  background: #a8ffb0;
+  color: #0b1b12;
+  text-shadow: none;
+}
+
+.ascii-grid-overlay {
+  position: absolute;
+  left: 1ch;
+  top: calc(var(--line-height) + 1px);
   display: grid;
-  gap: 0.4rem;
-  justify-content: start;
+  grid-template-columns: repeat(var(--grid-size), var(--cell-width));
+  column-gap: var(--separator-width);
+  row-gap: var(--line-height);
+  pointer-events: none;
 }
 
-.tile {
-  width: var(--tile-size);
-  height: var(--tile-size);
+.ascii-grid-hitbox {
+  width: var(--cell-width);
+  height: var(--line-height);
+  background: transparent;
+  border: 0;
   padding: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-  background: #3d5d3f;
-  border: 1px solid #4f7a53;
-  font-size: 1.1rem;
+  margin: 0;
   cursor: pointer;
-}
-
-.tile.selected {
-  outline: 2px solid #f2d27a;
-  outline-offset: 1px;
+  pointer-events: auto;
 }
 
 .hud {
