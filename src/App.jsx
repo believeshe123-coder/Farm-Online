@@ -95,106 +95,108 @@ export default function App() {
     gameState.selectedTileIndex !== null && gameState.unlockedTiles[gameState.selectedTileIndex];
   const selectedCoop = selectedTile?.type === 'coop' ? selectedTile : null;
 
-  return (
-    <div className="app-shell">
-      {view === 'front' ? (
+  console.log('VIEW:', view);
+
+  if (view === 'front') {
+    return (
+      <div className="app-shell">
         <FrontView
           onStartGame={handleStartGame}
           onLoadGame={handleFrontLoadGame}
           loadMessage={frontMessage}
         />
-      ) : (
-        <>
-          <HudBar
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-shell">
+      <HudBar
+        tick={gameState.tick}
+        money={gameState.money}
+        unlockedPlotCount={unlockedPlotCount}
+        totalPlots={totalPlots}
+        isPaused={isPaused}
+        onTogglePause={() => setIsPaused((prevIsPaused) => !prevIsPaused)}
+        onNewGame={handleNewGame}
+        onLoadGame={handleLoadGame}
+        onBackToFront={handleBackToFront}
+      />
+      <main className="main-layout">
+        <AsciiBoard
+          tiles={gameState.tiles}
+          gridSize={gameState.gridSize}
+          unlockedTiles={gameState.unlockedTiles}
+          renderMode={gameState.renderMode}
+          selectedTileIndex={gameState.selectedTileIndex}
+          onSelectTile={(index) =>
+            setGameState((prevState) => ({
+              ...prevState,
+              selectedTileIndex: index,
+            }))
+          }
+        />
+        <aside className="side-panels">
+          <TileInspector
+            selectedTileIndex={gameState.selectedTileIndex}
+            selectedTile={selectedTile}
             tick={gameState.tick}
-            money={gameState.money}
+            isSelectedTileUnlocked={isSelectedTileUnlocked}
+            unlockedPlotCount={unlockedPlotCount}
+            onHarvest={() =>
+              setGameState((prevState) => {
+                if (prevState.selectedTileIndex === null) {
+                  return prevState;
+                }
+
+                return harvestCrop(prevState, prevState.selectedTileIndex);
+              })
+            }
+            onOpenCoop={() => setIsCoopModalOpen(true)}
+          />
+          <ShopPanel
+            inventory={gameState.inventory}
+            selectedTileIndex={gameState.selectedTileIndex}
+            onPlant={(cropId) =>
+              setGameState((prevState) => {
+                if (prevState.selectedTileIndex === null) {
+                  return prevState;
+                }
+
+                return plantCrop(prevState, prevState.selectedTileIndex, cropId);
+              })
+            }
+            onBuildCoop={() =>
+              setGameState((prevState) => {
+                if (prevState.selectedTileIndex === null) {
+                  return prevState;
+                }
+
+                return placeBuilding(prevState, prevState.selectedTileIndex, 'coop');
+              })
+            }
             unlockedPlotCount={unlockedPlotCount}
             totalPlots={totalPlots}
-            isPaused={isPaused}
-            onTogglePause={() => setIsPaused((prevIsPaused) => !prevIsPaused)}
-            onNewGame={handleNewGame}
-            onLoadGame={handleLoadGame}
-            onBackToFront={handleBackToFront}
+            unlockCost={unlockCost}
+            canUnlockPlot={canUnlockPlot}
+            onUnlockPlot={() => setGameState((prevState) => unlockPlot(prevState))}
           />
-          <main className="main-layout">
-            <AsciiBoard
-              tiles={gameState.tiles}
-              gridSize={gameState.gridSize}
-              unlockedTiles={gameState.unlockedTiles}
-              renderMode={gameState.renderMode}
-              selectedTileIndex={gameState.selectedTileIndex}
-              onSelectTile={(index) =>
-                setGameState((prevState) => ({
-                  ...prevState,
-                  selectedTileIndex: index,
-                }))
-              }
-            />
-            <aside className="side-panels">
-              <TileInspector
-                selectedTileIndex={gameState.selectedTileIndex}
-                selectedTile={selectedTile}
-                tick={gameState.tick}
-                isSelectedTileUnlocked={isSelectedTileUnlocked}
-                unlockedPlotCount={unlockedPlotCount}
-                onHarvest={() =>
-                  setGameState((prevState) => {
-                    if (prevState.selectedTileIndex === null) {
-                      return prevState;
-                    }
-
-                    return harvestCrop(prevState, prevState.selectedTileIndex);
-                  })
-                }
-                onOpenCoop={() => setIsCoopModalOpen(true)}
-              />
-              <ShopPanel
-                inventory={gameState.inventory}
-                selectedTileIndex={gameState.selectedTileIndex}
-                onPlant={(cropId) =>
-                  setGameState((prevState) => {
-                    if (prevState.selectedTileIndex === null) {
-                      return prevState;
-                    }
-
-                    return plantCrop(prevState, prevState.selectedTileIndex, cropId);
-                  })
-                }
-                onBuildCoop={() =>
-                  setGameState((prevState) => {
-                    if (prevState.selectedTileIndex === null) {
-                      return prevState;
-                    }
-
-                    return placeBuilding(prevState, prevState.selectedTileIndex, 'coop');
-                  })
-                }
-                unlockedPlotCount={unlockedPlotCount}
-                totalPlots={totalPlots}
-                unlockCost={unlockCost}
-                canUnlockPlot={canUnlockPlot}
-                onUnlockPlot={() => setGameState((prevState) => unlockPlot(prevState))}
-              />
-              <InventoryPanel
-                inventory={gameState.inventory}
-                onSell={(itemId, qty) =>
-                  setGameState((prevState) => sellItem(prevState, itemId, qty))
-                }
-              />
-            </aside>
-          </main>
-          {isCoopModalOpen && selectedCoop && gameState.selectedTileIndex !== null && (
-            <CoopModal
-              coop={selectedCoop}
-              onClose={() => setIsCoopModalOpen(false)}
-              onBreed={(parentAId, parentBId) =>
-                setGameState((prevState) =>
-                  breedChicken(prevState, prevState.selectedTileIndex, parentAId, parentBId),
-                )
-              }
-            />
-          )}
-        </>
+          <InventoryPanel
+            inventory={gameState.inventory}
+            onSell={(itemId, qty) => setGameState((prevState) => sellItem(prevState, itemId, qty))}
+          />
+        </aside>
+      </main>
+      {isCoopModalOpen && selectedCoop && gameState.selectedTileIndex !== null && (
+        <CoopModal
+          coop={selectedCoop}
+          onClose={() => setIsCoopModalOpen(false)}
+          onBreed={(parentAId, parentBId) =>
+            setGameState((prevState) =>
+              breedChicken(prevState, prevState.selectedTileIndex, parentAId, parentBId),
+            )
+          }
+        />
       )}
     </div>
   );
