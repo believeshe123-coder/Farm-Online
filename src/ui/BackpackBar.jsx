@@ -23,6 +23,7 @@ function itemLabel(itemId) {
 
 export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, onSelectHotbar, onChangeHotbarItems }) {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [draggedItem, setDraggedItem] = useState(null);
   const hotkeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 
   const itemSlots = Array.from({ length: ITEM_SLOT_COUNT }, (_, index) => {
@@ -85,12 +86,64 @@ export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, on
     onChangeHotbarItems(nextHotbar);
   };
 
+  const placeItemInHotbarSlot = (itemId, targetIndex, source) => {
+    if (!itemId || targetIndex < 0 || targetIndex >= ITEM_SLOT_COUNT) {
+      return;
+    }
+
+    const nextHotbar = [...(hotbarItems ?? [])];
+    const existingIndex = nextHotbar.indexOf(itemId);
+
+    if (typeof source?.index === 'number') {
+      nextHotbar[source.index] = null;
+    }
+
+    if (existingIndex >= 0 && existingIndex !== targetIndex && existingIndex !== source?.index) {
+      nextHotbar[existingIndex] = null;
+    }
+
+    nextHotbar[targetIndex] = itemId;
+    onChangeHotbarItems(nextHotbar);
+  };
+
+  const handleDragStart = (event, payload) => {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('application/json', JSON.stringify(payload));
+    setDraggedItem(payload);
+  };
+
+  const resolveDraggedItem = (event) => {
+    const payload = event.dataTransfer.getData('application/json');
+    if (payload) {
+      try {
+        return JSON.parse(payload);
+      } catch {
+        return draggedItem;
+      }
+    }
+
+    return draggedItem;
+  };
+
   return (
     <section className="backpack-bar" aria-label="Backpack hotbar">
       {isInventoryOpen && (
         <div id="inventory-popup" className="backpack-inventory-popup" role="dialog" aria-label="Inventory bag">
           <p className="backpack-help">Click an item to add/remove it from your hotbar.</p>
-          <div className="backpack-bag" role="list" aria-label="Inventory slots">
+          <div
+            className="backpack-bag"
+            role="list"
+            aria-label="Inventory slots"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              const payload = resolveDraggedItem(event);
+              if (payload?.source === 'hotbar' && typeof payload.index === 'number') {
+                removeHotbarItem(payload.index);
+              }
+              setDraggedItem(null);
+            }}
+          >
             {bagSlots.map((slot) => (
               <button
                 key={slot.id}
@@ -99,6 +152,14 @@ export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, on
                 role="listitem"
                 onClick={() => moveItemToHotbar(slot.itemId)}
                 disabled={slot.isEmpty}
+                draggable={!slot.isEmpty}
+                onDragStart={(event) =>
+                  handleDragStart(event, {
+                    source: 'bag',
+                    itemId: slot.itemId,
+                  })
+                }
+                onDragEnd={() => setDraggedItem(null)}
               >
                 <span className="backpack-slot-label">{slot.label}</span>
                 {!slot.isEmpty && <span className="backpack-slot-count">x{slot.count}</span>}
@@ -111,8 +172,11 @@ export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, on
         {slots.map((slot) => {
           const isItemSlot = slot.selection?.kind === 'item';
           const itemCount = isItemSlot ? inventory[slot.selection.id] ?? 0 : null;
-          const isDisabled = slot.selection === null || (isItemSlot && itemCount === 0 && !isInventoryOpen);
+          const isDisabled = (!isInventoryOpen && slot.selection === null)
+            || (isItemSlot && itemCount === 0 && !isInventoryOpen);
           const isSelected = slot.selection ? isSameSelection(selectedHotbar, slot.selection) : false;
+          const itemIndex = slot.id - TOOL_SLOTS.length - 1;
+          const canDropToSlot = isInventoryOpen && slot.id > TOOL_SLOTS.length;
 
           return (
             <button
@@ -121,7 +185,7 @@ export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, on
               className={`backpack-slot ${isSelected ? 'is-selected' : ''}`}
               onClick={() => {
                 if (isInventoryOpen && slot.itemId) {
-                  removeHotbarItem(slot.id - TOOL_SLOTS.length - 1);
+                  removeHotbarItem(itemIndex);
                   return;
                 }
 
@@ -132,6 +196,35 @@ export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, on
               disabled={isDisabled}
               role="listitem"
               aria-pressed={isSelected}
+              draggable={Boolean(isInventoryOpen && slot.itemId)}
+              onDragStart={(event) => {
+                if (!slot.itemId) {
+                  event.preventDefault();
+                  return;
+                }
+
+                handleDragStart(event, {
+                  source: 'hotbar',
+                  itemId: slot.itemId,
+                  index: itemIndex,
+                });
+              }}
+              onDragEnd={() => setDraggedItem(null)}
+              onDragOver={(event) => {
+                if (canDropToSlot) {
+                  event.preventDefault();
+                }
+              }}
+              onDrop={(event) => {
+                if (!canDropToSlot) {
+                  return;
+                }
+
+                event.preventDefault();
+                const payload = resolveDraggedItem(event);
+                placeItemInHotbarSlot(payload?.itemId, itemIndex, payload);
+                setDraggedItem(null);
+              }}
             >
               <span className="backpack-slot-hotkey">{slot.hotkey}</span>
               <span className="backpack-slot-label">{slot.label}</span>

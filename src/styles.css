@@ -369,7 +369,14 @@ h3 {
   top: 0.2rem;
   left: 0.3rem;
   font-size: 0.62rem;
-  color: #d8b089;
+  color: rgba(216, 176, 137, 0.38);
+  z-index: 0;
+  text-shadow: none;
+}
+
+.backpack-slot-label {
+  position: relative;
+  z-index: 1;
 }
 
 .backpack-slot-count {
