@@ -1,4 +1,4 @@
-import { CROPS } from './constants.js';
+import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS } from './constants.js';
 
 const BASE_UNLOCK_PLOT_COST = 25;
 
@@ -89,15 +89,21 @@ function adjustInventory(inventory, itemId, delta) {
 }
 
 function spotToCropId(seedId) {
-  if (seedId === 'wheat_seed') {
-    return 'wheat';
+  if (!seedId?.endsWith('_seed')) {
+    return null;
   }
 
-  if (seedId === 'carrot_seed') {
-    return 'carrot';
+  const cropId = seedId.slice(0, -5);
+  return CROPS[cropId] ? cropId : null;
+}
+
+function getEffectiveGrowTime(crop, cropState) {
+  const isWatered = Boolean(cropState?.watered);
+  if (crop.wateredGrowMultiplier && isWatered) {
+    return crop.growTime * crop.wateredGrowMultiplier;
   }
 
-  return null;
+  return crop.growTime;
 }
 
 function getHarvestSeedId(cropId) {
@@ -132,7 +138,7 @@ function isSpotReadyToHarvest(state, spot) {
     return false;
   }
 
-  const growthProgress = (state.tick - spot.crop.plantedAtTick) / crop.growTime;
+  const growthProgress = (state.tick - spot.crop.plantedAtTick) / getEffectiveGrowTime(crop, spot.crop);
   return growthProgress >= 1;
 }
 
@@ -174,7 +180,12 @@ export function onSpotClick(state, plotIndex, spotIndex) {
   }
 
   if (selectedHotbar.kind === 'tool' && selectedHotbar.id === 'water') {
-    if (nextSpot.soil === 'hoed' && nextSpot.crop === null) {
+    if (nextSpot.crop) {
+      nextSpot.crop = {
+        ...nextSpot.crop,
+        watered: true,
+      };
+    } else if (nextSpot.soil === 'hoed' && nextSpot.crop === null) {
       nextSpot.soil = 'watered';
     }
   }
@@ -182,7 +193,7 @@ export function onSpotClick(state, plotIndex, spotIndex) {
   let nextInventory = state.inventory;
   if (selectedHotbar.kind === 'item') {
     const cropId = spotToCropId(selectedHotbar.id);
-    const canPlant = nextSpot.soil === 'watered' && nextSpot.crop === null;
+    const canPlant = (nextSpot.soil === 'watered' || nextSpot.soil === 'hoed') && nextSpot.crop === null;
     if (cropId && canPlant) {
       const updatedInventory = adjustInventory(state.inventory, selectedHotbar.id, -1);
       if (updatedInventory) {
@@ -190,7 +201,12 @@ export function onSpotClick(state, plotIndex, spotIndex) {
         nextSpot.crop = {
           cropId,
           plantedAtTick: state.tick,
+          watered: nextSpot.soil === 'watered',
+          regrowHarvestsRemaining: CROPS[cropId].regrowHarvests ?? 0,
         };
+        if (nextSpot.soil === 'watered') {
+          nextSpot.soil = 'hoed';
+        }
       }
     }
   }
@@ -227,31 +243,66 @@ export function harvestSpot(state, plotIndex, spotIndex) {
     return state;
   }
 
+  const crop = CROPS[spot.crop.cropId];
+  if (!crop) {
+    return state;
+  }
+
+  const produceAmount = 1
+    + (crop.bonusYieldChance && Math.random() < crop.bonusYieldChance ? 1 : 0)
+    + (crop.mutationBonusYieldChance && Math.random() < crop.mutationBonusYieldChance ? 1 : 0);
+
+  const harvestedItemId = crop.requiresWaterForFullValue && !spot.crop.watered ? 'lettuce_wilted' : spot.crop.cropId;
+
+  let nextInventory = state.inventory;
+  nextInventory = adjustInventory(nextInventory, harvestedItemId, produceAmount);
+  if (!nextInventory) {
+    return state;
+  }
+
+  const seedId = getHarvestSeedId(spot.crop.cropId);
+  const seedYield = crop.seedYield ?? 1;
+  const seedDropChance = crop.seedDropChance ?? 1;
+  if (Math.random() < seedDropChance) {
+    const inventoryWithSeeds = adjustInventory(nextInventory, seedId, seedYield);
+    if (!inventoryWithSeeds) {
+      return state;
+    }
+    nextInventory = inventoryWithSeeds;
+  }
+
+  if (crop.rareSeedDropChance && Math.random() < crop.rareSeedDropChance) {
+    const inventoryWithRareSeed = adjustInventory(nextInventory, seedId, 1);
+    if (inventoryWithRareSeed) {
+      nextInventory = inventoryWithRareSeed;
+    }
+  }
+
   const nextPlots = [...state.plots];
   const nextSpots = [...plot.spots];
-  nextSpots[spotIndex] = {
-    ...spot,
-    soil: 'hoed',
-    crop: null,
-  };
+  const shouldRegrow = (spot.crop.regrowHarvestsRemaining ?? 0) > 0;
+
+  nextSpots[spotIndex] = shouldRegrow
+    ? {
+        ...spot,
+        crop: {
+          ...spot.crop,
+          plantedAtTick: state.tick,
+          regrowHarvestsRemaining: (spot.crop.regrowHarvestsRemaining ?? 0) - 1,
+        },
+      }
+    : {
+        ...spot,
+        soil: 'hoed',
+        crop: null,
+      };
 
   nextPlots[plotIndex] = {
     ...plot,
     spots: nextSpots,
   };
 
-  const nextInventoryWithCrop = adjustInventory(state.inventory, spot.crop.cropId, 1);
-  if (!nextInventoryWithCrop) {
-    return state;
-  }
-
-  const seedId = getHarvestSeedId(spot.crop.cropId);
-  const nextInventory = adjustInventory(nextInventoryWithCrop, seedId, 1);
-  if (!nextInventory) {
-    return state;
-  }
-
-  const nextHotbarItems = addItemToHotbar(addItemToHotbar(state.hotbarItems, seedId), spot.crop.cropId);
+  const nextHotbarItems = addItemToHotbar(addItemToHotbar(state.hotbarItems, seedId), harvestedItemId);
 
   return {
     ...state,
@@ -282,8 +333,8 @@ export function sellItem(state, itemId, qty = 1) {
     return state;
   }
 
-  const itemCrop = CROPS[itemId];
-  if (!itemCrop) {
+  const sellableItem = SELLABLE_ITEMS[itemId];
+  if (!sellableItem) {
     return state;
   }
 
@@ -295,7 +346,35 @@ export function sellItem(state, itemId, qty = 1) {
   return {
     ...state,
     inventory: nextInventory,
-    money: state.money + itemCrop.sellPrice * qty,
+    money: state.money + sellableItem.sellPrice * qty,
+  };
+}
+
+export function buyItem(state, itemId, qty = 1) {
+  if (qty <= 0) {
+    return state;
+  }
+
+  const shopItem = SHOP_SEEDS[itemId];
+  if (!shopItem) {
+    return state;
+  }
+
+  const totalCost = shopItem.buyPrice * qty;
+  if (state.money < totalCost) {
+    return state;
+  }
+
+  const nextInventory = adjustInventory(state.inventory, itemId, qty);
+  if (!nextInventory) {
+    return state;
+  }
+
+  return {
+    ...state,
+    money: state.money - totalCost,
+    inventory: nextInventory,
+    hotbarItems: addItemToHotbar(state.hotbarItems, itemId),
   };
 }
 
@@ -340,20 +419,38 @@ export function placeBuilding(state, tileId, buildingId) {
     return state;
   }
 
-  if (buildingId !== 'coop') {
+  const building = SHOP_BUILDINGS[buildingId];
+  if (!building || state.money < building.buyPrice) {
     return state;
   }
 
   const nextTiles = [...state.tiles];
-  nextTiles[tileId] = {
-    type: 'coop',
-    kind: 'building',
-    buildingId: 'coop',
-    animals: createStarterChickens(),
-  };
+
+  if (buildingId === 'coop') {
+    nextTiles[tileId] = {
+      type: 'coop',
+      kind: 'building',
+      buildingId: 'coop',
+      animals: createStarterChickens(),
+    };
+  }
+
+  if (buildingId === 'barn') {
+    nextTiles[tileId] = {
+      type: 'barn',
+      kind: 'building',
+      buildingId: 'barn',
+      storage: {},
+    };
+  }
+
+  if (nextTiles[tileId].type === 'empty') {
+    return state;
+  }
 
   return {
     ...state,
+    money: state.money - building.buyPrice,
     tiles: nextTiles,
   };
 }

@@ -32,9 +32,10 @@ export function createNewGame() {
     unlockedTiles,
     inventory: {
       wheat_seed: 3,
-      carrot_seed: 1,
+      carrot_seed: 2,
+      turnip_seed: 2,
     },
-    hotbarItems: ['wheat_seed', 'carrot_seed'],
+    hotbarItems: ['wheat_seed', 'carrot_seed', 'turnip_seed'],
     selected: null,
     selectedTool: { kind: 'tool', id: 'hoe' },
     uiMessage: '',

@@ -16,7 +16,9 @@ import {
   harvestSpot,
   onSpotClick,
   placeBuilding,
+  sellItem,
   unlockPlot,
+  buyItem,
 } from './game/actions';
 
 function withSelectedTool(gameState) {
@@ -211,13 +213,15 @@ export default function App() {
           />
           <ShopPanel
             selectedPlotIndex={selectedPlotIndex}
-            onBuildCoop={() =>
+            money={gameState.money}
+            inventory={gameState.inventory}
+            onBuild={(buildingId) =>
               setGameState((prevState) => {
                 if (prevState.selected?.plotIndex === undefined) {
                   return prevState;
                 }
 
-                return placeBuilding(prevState, prevState.selected.plotIndex, 'coop');
+                return placeBuilding(prevState, prevState.selected.plotIndex, buildingId);
               })
             }
             unlockedPlotCount={unlockedPlotCount}
@@ -225,6 +229,8 @@ export default function App() {
             unlockCost={unlockCost}
             canUnlockPlot={canUnlockPlot}
             onUnlockPlot={() => setGameState((prevState) => unlockPlot(prevState))}
+            onBuySeed={(itemId) => setGameState((prevState) => buyItem(prevState, itemId))}
+            onSellItem={(itemId) => setGameState((prevState) => sellItem(prevState, itemId))}
           />
         </aside>
       </main>
