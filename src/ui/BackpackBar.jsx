@@ -40,7 +40,11 @@ export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, on
   });
 
   const slots = [...TOOL_SLOTS, ...itemSlots];
-  const bagEntries = useMemo(() => Object.entries(inventory ?? {}).filter(([, count]) => count > 0), [inventory]);
+  const bagEntries = useMemo(() => {
+    const hotbarItemSet = new Set((hotbarItems ?? []).filter(Boolean));
+
+    return Object.entries(inventory ?? {}).filter(([itemId, count]) => count > 0 && !hotbarItemSet.has(itemId));
+  }, [inventory, hotbarItems]);
   const bagSlots = Array.from({ length: BAG_SLOT_COUNT }, (_, index) => {
     const entry = bagEntries[index] ?? null;
 
