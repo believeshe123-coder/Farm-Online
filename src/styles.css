@@ -166,6 +166,43 @@ h3 {
   padding-left: 1.2rem;
 }
 
+
+.shop-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.shop-tab-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.shop-tab-row button.is-active {
+  border-color: #f1cb9f;
+  box-shadow: inset 0 0 0 1px rgba(241, 203, 159, 0.35);
+}
+
+.shop-section-body {
+  margin-top: 0.45rem;
+  padding-left: 0.2rem;
+}
+
+.panel details {
+  border: 1px solid rgba(167, 122, 81, 0.5);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  background: rgba(35, 23, 16, 0.25);
+}
+
+.panel summary {
+  cursor: pointer;
+  color: #f1d2ab;
+}
+
 @media (max-width: 1100px) {
   .main-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -202,11 +239,14 @@ h3 {
 }
 
 .game-layout {
-  padding-bottom: 1rem;
+  padding-bottom: 7rem;
 }
 
 .backpack-bar {
-  position: relative;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -251,6 +291,13 @@ h3 {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
+
+.backpack-help {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  color: #d9b890;
+}
+
 .backpack-bag {
   display: grid;
   grid-template-columns: repeat(10, minmax(42px, 56px));
@@ -258,6 +305,9 @@ h3 {
 }
 
 .backpack-bag-slot {
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
   position: relative;
   aspect-ratio: 1 / 1;
   border: 1px solid #8b6747;
@@ -271,6 +321,15 @@ h3 {
 
 .backpack-bag-slot.is-empty {
   color: #8f7259;
+  cursor: default;
+}
+
+.backpack-bag-slot:disabled {
+  opacity: 1;
+}
+
+.backpack-bag-slot:hover:not(:disabled) {
+  border-color: #dfae79;
 }
 
 .backpack-slot {
@@ -340,7 +399,7 @@ h3 {
   }
 
   .game-layout {
-    padding-bottom: 1rem;
+    padding-bottom: 12rem;
   }
 }
 
