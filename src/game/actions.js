@@ -193,7 +193,7 @@ export function onSpotClick(state, plotIndex, spotIndex) {
   let nextInventory = state.inventory;
   if (selectedHotbar.kind === 'item') {
     const cropId = spotToCropId(selectedHotbar.id);
-    const canPlant = (nextSpot.soil === 'watered' || nextSpot.soil === 'hoed') && nextSpot.crop === null;
+    const canPlant = nextSpot.soil === 'watered' && nextSpot.crop === null;
     if (cropId && canPlant) {
       const updatedInventory = adjustInventory(state.inventory, selectedHotbar.id, -1);
       if (updatedInventory) {
@@ -280,22 +280,11 @@ export function harvestSpot(state, plotIndex, spotIndex) {
 
   const nextPlots = [...state.plots];
   const nextSpots = [...plot.spots];
-  const shouldRegrow = (spot.crop.regrowHarvestsRemaining ?? 0) > 0;
-
-  nextSpots[spotIndex] = shouldRegrow
-    ? {
-        ...spot,
-        crop: {
-          ...spot.crop,
-          plantedAtTick: state.tick,
-          regrowHarvestsRemaining: (spot.crop.regrowHarvestsRemaining ?? 0) - 1,
-        },
-      }
-    : {
-        ...spot,
-        soil: 'hoed',
-        crop: null,
-      };
+  nextSpots[spotIndex] = {
+    ...spot,
+    soil: 'hoed',
+    crop: null,
+  };
 
   nextPlots[plotIndex] = {
     ...plot,
