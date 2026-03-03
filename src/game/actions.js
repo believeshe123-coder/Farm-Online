@@ -111,10 +111,27 @@ function debrisToInventoryItem(debris) {
   return null;
 }
 
-function getRandomCropId() {
-  const cropIds = Object.keys(CROPS);
-  const randomIndex = Math.floor(Math.random() * cropIds.length);
-  return cropIds[randomIndex] ?? null;
+export function getRandomCropId() {
+  const weightedCrops = Object.entries(CROPS).map(([cropId, crop]) => ({
+    cropId,
+    // Strongly favor cheaper seeds so rare/end-game crops are much less likely.
+    weight: 1 / ((crop.seedBuyPrice ?? 1) ** 2),
+  }));
+
+  const totalWeight = weightedCrops.reduce((sum, crop) => sum + crop.weight, 0);
+  if (totalWeight <= 0) {
+    return null;
+  }
+
+  let roll = Math.random() * totalWeight;
+  for (const crop of weightedCrops) {
+    roll -= crop.weight;
+    if (roll <= 0) {
+      return crop.cropId;
+    }
+  }
+
+  return weightedCrops[weightedCrops.length - 1]?.cropId ?? null;
 }
 
 function spotToCropId(seedId) {

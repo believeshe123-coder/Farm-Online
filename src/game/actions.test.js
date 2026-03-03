@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { createNewGame } from './createNewGame.js';
 import {
   buyItem,
+  getRandomCropId,
   harvestSpot,
   isCropHydratedAtTick,
   onSpotClick,
@@ -39,6 +40,24 @@ function clearDebrisAndPrepareSoil(state, plotIndex, spotIndex) {
 }
 
 
+
+
+test('generic seed roll strongly favors cheap crops over expensive ones', () => {
+  const totalRolls = 20000;
+  const counts = { wheat: 0, ancient_crop: 0 };
+
+  for (let i = 0; i < totalRolls; i += 1) {
+    const cropId = getRandomCropId();
+    if (cropId === 'wheat') {
+      counts.wheat += 1;
+    }
+    if (cropId === 'ancient_crop') {
+      counts.ancient_crop += 1;
+    }
+  }
+
+  assert.ok(counts.wheat > counts.ancient_crop * 15, `Expected wheat to be far more common than ancient crop. Wheat=${counts.wheat}, Ancient=${counts.ancient_crop}`);
+});
 test('generic seeds plant a random crop', () => {
   const plotIndex = 12;
   const spotIndex = 0;
