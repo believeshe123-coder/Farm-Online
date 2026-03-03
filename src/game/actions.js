@@ -1,4 +1,4 @@
-import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS } from './constants.js';
+import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS } from './constants.js';
 
 const BASE_UNLOCK_PLOT_COST = 25;
 
@@ -130,6 +130,23 @@ function spotToCropId(seedId) {
   return CROPS[cropId] ? cropId : null;
 }
 
+
+export function getWateringDurationTicks(cropId) {
+  return CROPS[cropId]?.wateringDurationTicks ?? WATERING_DURATION_TICKS;
+}
+
+export function isCropHydratedAtTick(cropState, tick) {
+  if (!cropState) {
+    return false;
+  }
+
+  if (typeof cropState.lastWateredTick === 'number') {
+    return (tick - cropState.lastWateredTick) <= getWateringDurationTicks(cropState.cropId);
+  }
+
+  return Boolean(cropState.watered);
+}
+
 function getEffectiveGrowTime(crop, cropState) {
   const isWatered = Boolean(cropState?.watered);
   if (crop.wateredGrowMultiplier && isWatered) {
@@ -248,6 +265,7 @@ export function onSpotClick(state, plotIndex, spotIndex) {
       nextSpot.crop = {
         ...nextSpot.crop,
         watered: true,
+        lastWateredTick: state.tick,
       };
     } else if (nextSpot.soil === 'hoed' && nextSpot.crop === null) {
       nextSpot.soil = 'watered';
@@ -266,6 +284,7 @@ export function onSpotClick(state, plotIndex, spotIndex) {
           cropId,
           plantedAtTick: state.tick,
           watered: nextSpot.soil === 'watered',
+          lastWateredTick: nextSpot.soil === 'watered' ? state.tick : null,
           regrowHarvestsRemaining: CROPS[cropId].regrowHarvests ?? 0,
         };
         if (nextSpot.soil === 'watered') {
@@ -316,7 +335,7 @@ export function harvestSpot(state, plotIndex, spotIndex) {
     + (crop.bonusYieldChance && Math.random() < crop.bonusYieldChance ? 1 : 0)
     + (crop.mutationBonusYieldChance && Math.random() < crop.mutationBonusYieldChance ? 1 : 0);
 
-  const harvestedItemId = crop.requiresWaterForFullValue && !spot.crop.watered ? 'lettuce_wilted' : spot.crop.cropId;
+  const harvestedItemId = crop.requiresWaterForFullValue && !isCropHydratedAtTick(spot.crop, state.tick) ? 'lettuce_wilted' : spot.crop.cropId;
 
   let nextInventory = state.inventory;
   nextInventory = adjustInventory(nextInventory, harvestedItemId, produceAmount);

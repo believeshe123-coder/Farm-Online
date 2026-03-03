@@ -1,4 +1,5 @@
 import { CROPS } from '../game/constants';
+import { getWateringDurationTicks, isCropHydratedAtTick } from '../game/actions';
 
 const BASE_UNLOCK_PLOT_COST = 25;
 
@@ -67,6 +68,22 @@ export default function TileInspector({
   const stage = progress === null ? 'None' : getStage(progress);
   const canHarvest = Boolean(progress !== null && progress >= 1);
 
+  let wateringStatus = null;
+  if (selectedSpot.crop) {
+    const hydrated = isCropHydratedAtTick(selectedSpot.crop, tick);
+    const hasTimedWatering = typeof selectedSpot.crop.lastWateredTick === 'number';
+
+    if (hydrated && hasTimedWatering) {
+      const wateringDuration = getWateringDurationTicks(selectedSpot.crop.cropId);
+      const ticksUntilWaterNeeded = Math.max(0, wateringDuration - (tick - selectedSpot.crop.lastWateredTick));
+      wateringStatus = ticksUntilWaterNeeded === 0 ? 'Needs water now' : `Water again in ${ticksUntilWaterNeeded} ticks`;
+    } else if (hydrated) {
+      wateringStatus = 'Watered';
+    } else {
+      wateringStatus = 'Needs water now';
+    }
+  }
+
   return (
     <section className="panel">
       <h3>Tile Inspector</h3>
@@ -84,7 +101,7 @@ export default function TileInspector({
       </p>
       {selectedSpot.crop && (
         <p>
-          <strong>Watered:</strong> {selectedSpot.crop.watered ? 'Yes' : 'No'}
+          <strong>Water:</strong> {wateringStatus}
         </p>
       )}
       {crop && progress !== null && (

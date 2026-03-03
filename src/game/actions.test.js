@@ -2,8 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createNewGame } from './createNewGame.js';
-import { buyItem, harvestSpot, onSpotClick, placeBuilding, sellItem, unlockPlot } from './actions.js';
-import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS } from './constants.js';
+import {
+  buyItem,
+  harvestSpot,
+  isCropHydratedAtTick,
+  onSpotClick,
+  placeBuilding,
+  sellItem,
+  unlockPlot,
+} from './actions.js';
+import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS } from './constants.js';
 
 function withMockedRandom(value, callback) {
   const originalRandom = Math.random;
@@ -123,7 +131,59 @@ test('placing barn consumes money and changes tile type', () => {
   assert.equal(barnState.money, state.money - SHOP_BUILDINGS.barn.buyPrice);
 });
 
-test('watered lettuce harvest produces lettuce instead of wilted lettuce', () => {
+test('watering a planted crop sets lastWateredTick', () => {
+  const plotIndex = 12;
+  const spotIndex = 1;
+  let state = {
+    ...createNewGame(),
+    inventory: { melon_seed: 1 },
+    hotbarItems: ['melon_seed'],
+  };
+
+  state = clearDebrisAndPrepareSoil(state, plotIndex, spotIndex);
+  state = { ...state, selectedTool: { kind: 'item', id: 'melon_seed' } };
+  state = onSpotClick(state, plotIndex, spotIndex);
+
+  state = { ...state, tick: 3, selectedTool: { kind: 'tool', id: 'water' } };
+  state = onSpotClick(state, plotIndex, spotIndex);
+
+  assert.equal(state.plots[plotIndex].spots[spotIndex].crop?.lastWateredTick, 3);
+  assert.equal(state.plots[plotIndex].spots[spotIndex].crop?.watered, true);
+});
+
+test('hydration expires after configured watering duration ticks', () => {
+  const hydratedCrop = { cropId: 'lettuce', watered: true, lastWateredTick: 2 };
+
+  assert.equal(isCropHydratedAtTick(hydratedCrop, 2 + WATERING_DURATION_TICKS), true);
+  assert.equal(isCropHydratedAtTick(hydratedCrop, 2 + WATERING_DURATION_TICKS + 1), false);
+});
+
+test('re-watering refreshes hydration window', () => {
+  const plotIndex = 12;
+  const spotIndex = 1;
+  let state = {
+    ...createNewGame(),
+    inventory: { melon_seed: 1 },
+    hotbarItems: ['melon_seed'],
+  };
+
+  state = clearDebrisAndPrepareSoil(state, plotIndex, spotIndex);
+  state = { ...state, selectedTool: { kind: 'item', id: 'melon_seed' } };
+  state = onSpotClick(state, plotIndex, spotIndex);
+
+  state = {
+    ...state,
+    tick: WATERING_DURATION_TICKS + 2,
+    selectedTool: { kind: 'tool', id: 'water' },
+  };
+  state = onSpotClick(state, plotIndex, spotIndex);
+
+  const cropState = state.plots[plotIndex].spots[spotIndex].crop;
+  assert.equal(cropState?.lastWateredTick, WATERING_DURATION_TICKS + 2);
+  assert.equal(isCropHydratedAtTick(cropState, WATERING_DURATION_TICKS + 2), true);
+});
+
+test('hydrated lettuce harvest produces lettuce instead of wilted lettuce', () => {
   const plotIndex = 12;
   const spotIndex = 1;
   let state = {
@@ -142,6 +202,30 @@ test('watered lettuce harvest produces lettuce instead of wilted lettuce', () =>
 
   assert.equal(state.inventory.lettuce ?? 0, 1);
   assert.equal(state.inventory.lettuce_wilted ?? 0, 0);
+});
+
+test('lettuce becomes wilted if hydration has expired before harvest', () => {
+  const plotIndex = 12;
+  const spotIndex = 1;
+  let state = {
+    ...createNewGame(),
+    inventory: { ...createNewGame().inventory, lettuce_seed: 1 },
+    hotbarItems: [...createNewGame().hotbarItems, 'lettuce_seed'],
+  };
+
+  state = clearDebrisAndPrepareSoil(state, plotIndex, spotIndex);
+
+  state = { ...state, selectedTool: { kind: 'item', id: 'lettuce_seed' } };
+  state = onSpotClick(state, plotIndex, spotIndex);
+
+  state = {
+    ...state,
+    tick: CROPS.lettuce.growTime + WATERING_DURATION_TICKS + 1,
+  };
+  state = withMockedRandom(0.99, () => harvestSpot(state, plotIndex, spotIndex));
+
+  assert.equal(state.inventory.lettuce ?? 0, 0);
+  assert.equal(state.inventory.lettuce_wilted ?? 0, 1);
 });
 
 test('harvesting resets planted spots to dry hoed soil', () => {
