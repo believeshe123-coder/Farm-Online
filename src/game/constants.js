@@ -81,6 +81,8 @@ export const CROPS = {
   },
 };
 
+export const WATERING_DURATION_TICKS = 8;
+
 export const SHOP_SEEDS = Object.fromEntries(
   Object.entries(CROPS)
     .filter(([, crop]) => crop.inShop !== false)
