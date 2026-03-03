@@ -11,6 +11,18 @@ function getEffectiveGrowTime(crop, cropState) {
 }
 
 function getSpotVisual(spot, tick) {
+  if (spot?.debris === 'wood') {
+    return { glyph: '@', className: 'is-raw' };
+  }
+
+  if (spot?.debris === 'grass') {
+    return { glyph: '$', className: 'is-planted' };
+  }
+
+  if (spot?.debris === 'rock') {
+    return { glyph: 'R', className: 'is-hoed' };
+  }
+
   if (!spot?.crop) {
     if (spot?.soil === 'hoed') {
       return { glyph: '=', className: 'is-hoed' };
@@ -20,7 +32,7 @@ function getSpotVisual(spot, tick) {
       return { glyph: '=', className: 'is-watered' };
     }
 
-    return { glyph: '@', className: 'is-raw' };
+    return { glyph: '.', className: 'is-raw' };
   }
 
   const crop = CROPS[spot.crop.cropId];

@@ -18,34 +18,40 @@ function getUnlockedPlotCount(state) {
 }
 
 function getUnlockPlotCost(state) {
-  return BASE_UNLOCK_PLOT_COST * (getUnlockedPlotCount(state) - 8);
+  return BASE_UNLOCK_PLOT_COST * getUnlockedPlotCount(state);
 }
 
-function getLockedTilesByCenterDistance(gridSize, unlockedTiles) {
-  const center = (gridSize - 1) / 2;
 
-  return unlockedTiles
-    .map((isUnlocked, index) => ({
-      index,
-      isUnlocked,
-      row: Math.floor(index / gridSize),
-      col: index % gridSize,
-    }))
-    .filter((tile) => !tile.isUnlocked)
-    .sort((a, b) => {
-      const aDistance = Math.abs(a.row - center) + Math.abs(a.col - center);
-      const bDistance = Math.abs(b.row - center) + Math.abs(b.col - center);
-      if (aDistance !== bDistance) {
-        return aDistance - bDistance;
+function getAdjacentLockedTiles(gridSize, unlockedTiles) {
+  const adjacent = [];
+
+  unlockedTiles.forEach((isUnlocked, index) => {
+    if (!isUnlocked) {
+      return;
+    }
+
+    const row = Math.floor(index / gridSize);
+    const col = index % gridSize;
+    const neighbors = [
+      [row - 1, col],
+      [row + 1, col],
+      [row, col - 1],
+      [row, col + 1],
+    ];
+
+    for (const [neighborRow, neighborCol] of neighbors) {
+      if (neighborRow < 0 || neighborRow >= gridSize || neighborCol < 0 || neighborCol >= gridSize) {
+        continue;
       }
 
-      if (a.row !== b.row) {
-        return a.row - b.row;
+      const neighborIndex = neighborRow * gridSize + neighborCol;
+      if (!unlockedTiles[neighborIndex]) {
+        adjacent.push(neighborIndex);
       }
+    }
+  });
 
-      return a.col - b.col;
-    })
-    .map((tile) => tile.index);
+  return [...new Set(adjacent)].sort((a, b) => a - b);
 }
 
 const COMMON_CHICKEN_TRAITS = {
@@ -86,6 +92,23 @@ function adjustInventory(inventory, itemId, delta) {
   }
 
   return nextInventory;
+}
+
+
+function debrisToInventoryItem(debris) {
+  if (debris === 'wood') {
+    return 'wood';
+  }
+
+  if (debris === 'grass') {
+    return 'seeds';
+  }
+
+  if (debris === 'rock') {
+    return 'rock';
+  }
+
+  return null;
 }
 
 function spotToCropId(seedId) {
@@ -157,6 +180,37 @@ export function onSpotClick(state, plotIndex, spotIndex) {
     const harvestedState = harvestSpot(state, plotIndex, spotIndex);
     return {
       ...harvestedState,
+      selected: { plotIndex, spotIndex },
+    };
+  }
+
+  if (spot.debris) {
+    const debrisItemId = debrisToInventoryItem(spot.debris);
+    let nextInventory = state.inventory;
+    if (debrisItemId) {
+      const inventoryWithDebris = adjustInventory(nextInventory, debrisItemId, 1);
+      if (inventoryWithDebris) {
+        nextInventory = inventoryWithDebris;
+      }
+    }
+
+    const nextPlots = [...state.plots];
+    const nextSpots = [...plot.spots];
+    nextSpots[spotIndex] = {
+      ...spot,
+      debris: null,
+    };
+
+    nextPlots[plotIndex] = {
+      ...plot,
+      spots: nextSpots,
+    };
+
+    return {
+      ...state,
+      plots: nextPlots,
+      inventory: nextInventory,
+      hotbarItems: debrisItemId ? addItemToHotbar(state.hotbarItems, debrisItemId) : state.hotbarItems,
       selected: { plotIndex, spotIndex },
     };
   }
@@ -367,10 +421,14 @@ export function buyItem(state, itemId, qty = 1) {
   };
 }
 
-export function unlockPlot(state) {
-  const lockedTileIndices = getLockedTilesByCenterDistance(state.gridSize, state.unlockedTiles);
-  if (lockedTileIndices.length === 0) {
+export function unlockPlot(state, tileToUnlock) {
+  const unlockableTiles = getAdjacentLockedTiles(state.gridSize, state.unlockedTiles);
+  if (unlockableTiles.length === 0) {
     return state;
+  }
+
+  if (!unlockableTiles.includes(tileToUnlock)) {
+    return withUiMessage(state, 'Select an adjacent locked plot to buy.');
   }
 
   const unlockCost = getUnlockPlotCost(state);
@@ -378,7 +436,6 @@ export function unlockPlot(state) {
     return state;
   }
 
-  const tileToUnlock = lockedTileIndices[0];
   const nextUnlockedTiles = [...state.unlockedTiles];
   nextUnlockedTiles[tileToUnlock] = true;
 
@@ -395,7 +452,11 @@ export function getUnlockPlotCostForState(state) {
 }
 
 export function getUnlockablePlotCount(state) {
-  return getLockedTilesByCenterDistance(state.gridSize, state.unlockedTiles).length;
+  return getAdjacentLockedTiles(state.gridSize, state.unlockedTiles).length;
+}
+
+export function getUnlockablePlots(state) {
+  return getAdjacentLockedTiles(state.gridSize, state.unlockedTiles);
 }
 
 export function placeBuilding(state, tileId, buildingId) {

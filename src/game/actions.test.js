@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createNewGame } from './createNewGame.js';
-import { buyItem, harvestSpot, onSpotClick, placeBuilding, sellItem } from './actions.js';
+import { buyItem, harvestSpot, onSpotClick, placeBuilding, sellItem, unlockPlot } from './actions.js';
 import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS } from './constants.js';
 
 function withMockedRandom(value, callback) {
@@ -15,31 +15,37 @@ function withMockedRandom(value, callback) {
   }
 }
 
+
+function clearDebrisAndPrepareSoil(state, plotIndex, spotIndex) {
+  let nextState = { ...state, selectedTool: { kind: 'tool', id: 'hoe' } };
+
+  if (nextState.plots[plotIndex].spots[spotIndex].debris) {
+    nextState = onSpotClick(nextState, plotIndex, spotIndex);
+  }
+
+  nextState = onSpotClick(nextState, plotIndex, spotIndex);
+  nextState = { ...nextState, selectedTool: { kind: 'tool', id: 'water' } };
+  nextState = onSpotClick(nextState, plotIndex, spotIndex);
+
+  return nextState;
+}
+
 test('planting requires watering and harvesting carrot credits inventory under carrot key', () => {
-  const plotIndex = 6;
+  const plotIndex = 12;
   const spotIndex = 0;
 
-  let state = createNewGame();
-
-  state = {
-    ...state,
-    selectedTool: { kind: 'tool', id: 'hoe' },
+  let state = {
+    ...createNewGame(),
+    inventory: { carrot_seed: 2 },
+    hotbarItems: ['carrot_seed'],
   };
-  state = onSpotClick(state, plotIndex, spotIndex);
 
-  state = {
-    ...state,
-    selectedTool: { kind: 'item', id: 'carrot_seed' },
-  };
+  state = { ...state, selectedTool: { kind: 'item', id: 'carrot_seed' } };
   state = onSpotClick(state, plotIndex, spotIndex);
 
   assert.equal(state.plots[plotIndex].spots[spotIndex].crop, null);
 
-  state = {
-    ...state,
-    selectedTool: { kind: 'tool', id: 'water' },
-  };
-  state = onSpotClick(state, plotIndex, spotIndex);
+  state = clearDebrisAndPrepareSoil(state, plotIndex, spotIndex);
 
   state = {
     ...state,
@@ -92,13 +98,13 @@ test('placing barn consumes money and changes tile type', () => {
     money: 500,
   };
 
-  const barnState = placeBuilding(state, 6, 'barn');
-  assert.equal(barnState.tiles[6].type, 'barn');
+  const barnState = placeBuilding(state, 12, 'barn');
+  assert.equal(barnState.tiles[12].type, 'barn');
   assert.equal(barnState.money, state.money - SHOP_BUILDINGS.barn.buyPrice);
 });
 
 test('watered lettuce harvest produces lettuce instead of wilted lettuce', () => {
-  const plotIndex = 6;
+  const plotIndex = 12;
   const spotIndex = 1;
   let state = {
     ...createNewGame(),
@@ -106,11 +112,7 @@ test('watered lettuce harvest produces lettuce instead of wilted lettuce', () =>
     hotbarItems: [...createNewGame().hotbarItems, 'lettuce_seed'],
   };
 
-  state = { ...state, selectedTool: { kind: 'tool', id: 'hoe' } };
-  state = onSpotClick(state, plotIndex, spotIndex);
-
-  state = { ...state, selectedTool: { kind: 'tool', id: 'water' } };
-  state = onSpotClick(state, plotIndex, spotIndex);
+  state = clearDebrisAndPrepareSoil(state, plotIndex, spotIndex);
 
   state = { ...state, selectedTool: { kind: 'item', id: 'lettuce_seed' } };
   state = onSpotClick(state, plotIndex, spotIndex);
@@ -123,7 +125,7 @@ test('watered lettuce harvest produces lettuce instead of wilted lettuce', () =>
 });
 
 test('harvesting resets planted spots to dry hoed soil', () => {
-  const plotIndex = 6;
+  const plotIndex = 12;
   const spotIndex = 2;
   let state = {
     ...createNewGame(),
@@ -131,10 +133,7 @@ test('harvesting resets planted spots to dry hoed soil', () => {
     hotbarItems: [...createNewGame().hotbarItems, 'strawberry_seed'],
   };
 
-  state = { ...state, selectedTool: { kind: 'tool', id: 'hoe' } };
-  state = onSpotClick(state, plotIndex, spotIndex);
-  state = { ...state, selectedTool: { kind: 'tool', id: 'water' } };
-  state = onSpotClick(state, plotIndex, spotIndex);
+  state = clearDebrisAndPrepareSoil(state, plotIndex, spotIndex);
   state = { ...state, selectedTool: { kind: 'item', id: 'strawberry_seed' } };
   state = onSpotClick(state, plotIndex, spotIndex);
 
@@ -166,7 +165,7 @@ test('mutation crops remain in gameplay but are excluded from shop', () => {
 });
 
 test('fireflower mutation bonus yield can trigger in harvest', () => {
-  const plotIndex = 6;
+  const plotIndex = 12;
   const spotIndex = 3;
   let state = {
     ...createNewGame(),
@@ -174,10 +173,7 @@ test('fireflower mutation bonus yield can trigger in harvest', () => {
     hotbarItems: [...createNewGame().hotbarItems, 'fireflower_seed'],
   };
 
-  state = { ...state, selectedTool: { kind: 'tool', id: 'hoe' } };
-  state = onSpotClick(state, plotIndex, spotIndex);
-  state = { ...state, selectedTool: { kind: 'tool', id: 'water' } };
-  state = onSpotClick(state, plotIndex, spotIndex);
+  state = clearDebrisAndPrepareSoil(state, plotIndex, spotIndex);
   state = { ...state, selectedTool: { kind: 'item', id: 'fireflower_seed' } };
   state = onSpotClick(state, plotIndex, spotIndex);
 
@@ -185,4 +181,59 @@ test('fireflower mutation bonus yield can trigger in harvest', () => {
   state = withMockedRandom(0.01, () => harvestSpot(state, plotIndex, spotIndex));
 
   assert.equal(state.inventory.fireflower ?? 0, 2);
+});
+
+
+test('new game starts with exactly one unlocked center plot', () => {
+  const state = createNewGame();
+  const unlockedIndices = state.unlockedTiles.map((isUnlocked, index) => (isUnlocked ? index : null)).filter((index) => index !== null);
+
+  assert.deepEqual(unlockedIndices, [12]);
+});
+
+test('unlock plot requires choosing an adjacent locked tile', () => {
+  let state = { ...createNewGame(), money: 1000 };
+
+  const invalidState = unlockPlot(state, 0);
+  assert.equal(invalidState.unlockedTiles[0], false);
+  assert.equal(invalidState.uiMessage, 'Select an adjacent locked plot to buy.');
+
+  state = unlockPlot(state, 7);
+  assert.equal(state.unlockedTiles[7], true);
+});
+
+
+test('new game starts with no seeds in inventory', () => {
+  const state = createNewGame();
+
+  assert.deepEqual(state.inventory, {});
+  assert.deepEqual(state.hotbarItems, []);
+});
+
+test('clicking debris clears it and awards resources', () => {
+  const plotIndex = 12;
+  const spotIndex = 4;
+  let state = createNewGame();
+
+  state = {
+    ...state,
+    plots: state.plots.map((plot, index) => {
+      if (index !== plotIndex) {
+        return plot;
+      }
+
+      const spots = [...plot.spots];
+      spots[spotIndex] = {
+        ...spots[spotIndex],
+        debris: 'wood',
+      };
+
+      return { ...plot, spots };
+    }),
+  };
+
+  state = onSpotClick(state, plotIndex, spotIndex);
+
+  assert.equal(state.plots[plotIndex].spots[spotIndex].debris, null);
+  assert.equal(state.inventory.wood, 1);
 });

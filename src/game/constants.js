@@ -99,6 +99,9 @@ export const SELLABLE_ITEMS = {
   ...Object.fromEntries(Object.entries(CROPS).map(([cropId, crop]) => [cropId, { name: crop.name, sellPrice: crop.sellPrice }])),
   lettuce_wilted: { name: 'Wilted Lettuce', sellPrice: CROPS.lettuce.sellPrice / 2 },
   egg: { name: 'Egg', sellPrice: 4 },
+  wood: { name: 'Wood', sellPrice: 2 },
+  seeds: { name: 'Seeds', sellPrice: 1 },
+  rock: { name: 'Rock', sellPrice: 2 },
 };
 
 export const ANIMALS = {
