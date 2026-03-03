@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useState } from 'react';
 
 import { CROPS } from '../game/constants';
 
@@ -45,29 +45,15 @@ function getSpotVisual(spot, tick) {
 }
 
 export default function AsciiBoard({ tiles, plots, gridSize, tick, unlockedTiles, selected, onSpotClick }) {
-  const isDraggingRef = useRef(false);
-
-  useEffect(() => {
-    function stopDragging() {
-      isDraggingRef.current = false;
-    }
-
-    window.addEventListener('mouseup', stopDragging);
-    window.addEventListener('blur', stopDragging);
-
-    return () => {
-      window.removeEventListener('mouseup', stopDragging);
-      window.removeEventListener('blur', stopDragging);
-    };
-  }, []);
+  const [isDragging, setIsDragging] = useState(false);
 
   function handleSpotPointerDown(plotIndex, spotIndex) {
-    isDraggingRef.current = true;
+    setIsDragging(true);
     onSpotClick(plotIndex, spotIndex);
   }
 
-  function handleSpotPointerEnter(plotIndex, spotIndex) {
-    if (!isDraggingRef.current) {
+  function handleSpotPointerEnter(plotIndex, spotIndex, event) {
+    if (!isDragging || event.buttons !== 1) {
       return;
     }
 
@@ -75,7 +61,7 @@ export default function AsciiBoard({ tiles, plots, gridSize, tick, unlockedTiles
   }
 
   function stopDragging() {
-    isDraggingRef.current = false;
+    setIsDragging(false);
   }
 
   return (
@@ -105,7 +91,7 @@ export default function AsciiBoard({ tiles, plots, gridSize, tick, unlockedTiles
                         type="button"
                         className={`spotCell ${visual.className}${isSelected ? ' is-selected' : ''}`}
                         onMouseDown={() => handleSpotPointerDown(plotIndex, spotIndex)}
-                        onMouseEnter={() => handleSpotPointerEnter(plotIndex, spotIndex)}
+                        onMouseEnter={(event) => handleSpotPointerEnter(plotIndex, spotIndex, event)}
                         onClick={(event) => {
                           if (event.detail === 0) {
                             onSpotClick(plotIndex, spotIndex);
