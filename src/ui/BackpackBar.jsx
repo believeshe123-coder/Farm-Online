@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 const TOOL_SLOTS = [
   { id: 1, label: 'HOE', selection: { kind: 'tool', id: 'hoe' }, hotkey: '1' },
@@ -21,7 +21,7 @@ function itemLabel(itemId) {
   return itemId.replaceAll('_', ' ').toUpperCase();
 }
 
-export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, onSelectHotbar }) {
+export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, onSelectHotbar, onChangeHotbarItems }) {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const hotkeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 
@@ -31,6 +31,7 @@ export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, on
 
     return {
       id: index + TOOL_SLOTS.length + 1,
+      itemId,
       label: itemLabel(itemId),
       selection,
       hotkey: hotkeys[index + TOOL_SLOTS.length],
@@ -38,28 +39,70 @@ export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, on
   });
 
   const slots = [...TOOL_SLOTS, ...itemSlots];
-  const bagEntries = Object.entries(inventory ?? {}).filter(([, count]) => count > 0);
+  const bagEntries = useMemo(() => Object.entries(inventory ?? {}).filter(([, count]) => count > 0), [inventory]);
   const bagSlots = Array.from({ length: BAG_SLOT_COUNT }, (_, index) => {
     const entry = bagEntries[index] ?? null;
 
     return {
       id: `bag-${index}`,
+      itemId: entry?.[0] ?? null,
       label: itemLabel(entry?.[0] ?? null),
       count: entry?.[1] ?? 0,
       isEmpty: entry === null,
     };
   });
 
+  const moveItemToHotbar = (itemId) => {
+    if (!itemId) {
+      return;
+    }
+
+    const nextHotbar = [...(hotbarItems ?? [])];
+    const existingIndex = nextHotbar.indexOf(itemId);
+    if (existingIndex >= 0) {
+      nextHotbar[existingIndex] = null;
+      onChangeHotbarItems(nextHotbar);
+      return;
+    }
+
+    const emptyIndex = nextHotbar.findIndex((id) => !id);
+    if (emptyIndex >= 0) {
+      nextHotbar[emptyIndex] = itemId;
+      onChangeHotbarItems(nextHotbar);
+      return;
+    }
+
+    const selectedIndex = selectedHotbar?.kind === 'item' ? nextHotbar.indexOf(selectedHotbar.id) : -1;
+    if (selectedIndex >= 0) {
+      nextHotbar[selectedIndex] = itemId;
+      onChangeHotbarItems(nextHotbar);
+    }
+  };
+
+  const removeHotbarItem = (itemIndex) => {
+    const nextHotbar = [...(hotbarItems ?? [])];
+    nextHotbar[itemIndex] = null;
+    onChangeHotbarItems(nextHotbar);
+  };
+
   return (
     <section className="backpack-bar" aria-label="Backpack hotbar">
       {isInventoryOpen && (
         <div id="inventory-popup" className="backpack-inventory-popup" role="dialog" aria-label="Inventory bag">
+          <p className="backpack-help">Click an item to add/remove it from your hotbar.</p>
           <div className="backpack-bag" role="list" aria-label="Inventory slots">
             {bagSlots.map((slot) => (
-              <div key={slot.id} className={`backpack-bag-slot ${slot.isEmpty ? 'is-empty' : ''}`} role="listitem">
+              <button
+                key={slot.id}
+                type="button"
+                className={`backpack-bag-slot ${slot.isEmpty ? 'is-empty' : ''}`}
+                role="listitem"
+                onClick={() => moveItemToHotbar(slot.itemId)}
+                disabled={slot.isEmpty}
+              >
                 <span className="backpack-slot-label">{slot.label}</span>
                 {!slot.isEmpty && <span className="backpack-slot-count">x{slot.count}</span>}
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -68,7 +111,7 @@ export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, on
         {slots.map((slot) => {
           const isItemSlot = slot.selection?.kind === 'item';
           const itemCount = isItemSlot ? inventory[slot.selection.id] ?? 0 : null;
-          const isDisabled = slot.selection === null || (isItemSlot && itemCount === 0);
+          const isDisabled = slot.selection === null || (isItemSlot && itemCount === 0 && !isInventoryOpen);
           const isSelected = slot.selection ? isSameSelection(selectedHotbar, slot.selection) : false;
 
           return (
@@ -76,7 +119,16 @@ export default function BackpackBar({ inventory, hotbarItems, selectedHotbar, on
               key={slot.id}
               type="button"
               className={`backpack-slot ${isSelected ? 'is-selected' : ''}`}
-              onClick={() => slot.selection && onSelectHotbar(slot.selection)}
+              onClick={() => {
+                if (isInventoryOpen && slot.itemId) {
+                  removeHotbarItem(slot.id - TOOL_SLOTS.length - 1);
+                  return;
+                }
+
+                if (slot.selection) {
+                  onSelectHotbar(slot.selection);
+                }
+              }}
               disabled={isDisabled}
               role="listitem"
               aria-pressed={isSelected}

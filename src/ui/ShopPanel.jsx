@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS } from '../game/constants';
 
 export default function ShopPanel({
@@ -13,47 +14,112 @@ export default function ShopPanel({
   onBuySeed,
   onSellItem,
 }) {
+  const [activeTab, setActiveTab] = useState('shop');
+  const [isOpen, setIsOpen] = useState(true);
   const canBuild = selectedPlotIndex !== null;
+
+  if (!isOpen) {
+    return (
+      <section className="panel">
+        <div className="shop-header-row">
+          <h3>Shop</h3>
+          <button type="button" onClick={() => setIsOpen(true)}>
+            Open Shop
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="panel">
-      <h3>Shop</h3>
+      <div className="shop-header-row">
+        <h3>Shop</h3>
+        <button type="button" onClick={() => setIsOpen(false)}>
+          Close
+        </button>
+      </div>
+
+      <div className="shop-tab-row" role="tablist" aria-label="Shop tabs">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'shop'}
+          className={activeTab === 'shop' ? 'is-active' : ''}
+          onClick={() => setActiveTab('shop')}
+        >
+          Shop
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'sell'}
+          className={activeTab === 'sell' ? 'is-active' : ''}
+          onClick={() => setActiveTab('sell')}
+        >
+          Sell
+        </button>
+      </div>
+
       <div className="stack-sm">
         <p className="muted">Plots: {unlockedPlotCount}/{totalPlots}</p>
         <p className="muted">Cash: ${money}</p>
 
-        <h4>Seeds</h4>
-        {Object.entries(SHOP_SEEDS).map(([itemId, item]) => (
-          <button key={itemId} type="button" disabled={money < item.buyPrice} onClick={() => onBuySeed(itemId)}>
-            Buy {item.name} - ${item.buyPrice}
-          </button>
-        ))}
+        {activeTab === 'shop' && (
+          <>
+            <details open>
+              <summary>Seeds</summary>
+              <div className="stack-sm shop-section-body">
+                {Object.entries(SHOP_SEEDS).map(([itemId, item]) => (
+                  <button key={itemId} type="button" disabled={money < item.buyPrice} onClick={() => onBuySeed(itemId)}>
+                    Buy {item.name} - ${item.buyPrice}
+                  </button>
+                ))}
+              </div>
+            </details>
 
-        <h4>Buildings</h4>
-        {Object.entries(SHOP_BUILDINGS).map(([buildingId, building]) => (
-          <button
-            key={buildingId}
-            type="button"
-            disabled={!canBuild || money < building.buyPrice}
-            onClick={() => onBuild(buildingId)}
-          >
-            Build {building.name} - ${building.buyPrice}
-          </button>
-        ))}
+            <details open>
+              <summary>Buildings</summary>
+              <div className="stack-sm shop-section-body">
+                {Object.entries(SHOP_BUILDINGS).map(([buildingId, building]) => (
+                  <button
+                    key={buildingId}
+                    type="button"
+                    disabled={!canBuild || money < building.buyPrice}
+                    onClick={() => onBuild(buildingId)}
+                  >
+                    Build {building.name} - ${building.buyPrice}
+                  </button>
+                ))}
+              </div>
+            </details>
 
-        <button type="button" disabled={!canUnlockPlot} onClick={onUnlockPlot}>
-          {unlockedPlotCount >= totalPlots ? 'Unlock Plot (All plots unlocked)' : `Unlock Plot - $${unlockCost}`}
-        </button>
+            <details open>
+              <summary>Plots</summary>
+              <div className="stack-sm shop-section-body">
+                <button type="button" disabled={!canUnlockPlot} onClick={onUnlockPlot}>
+                  {unlockedPlotCount >= totalPlots ? 'Unlock Plot (All plots unlocked)' : `Unlock Plot - $${unlockCost}`}
+                </button>
+              </div>
+            </details>
+          </>
+        )}
 
-        <h4>Sell</h4>
-        {Object.entries(SELLABLE_ITEMS).map(([itemId, item]) => {
-          const owned = inventory[itemId] ?? 0;
-          return (
-            <button key={itemId} type="button" disabled={owned < 1} onClick={() => onSellItem(itemId)}>
-              Sell {item.name} (+${item.sellPrice}) {owned > 0 ? `(x${owned})` : ''}
-            </button>
-          );
-        })}
+        {activeTab === 'sell' && (
+          <details open>
+            <summary>Sell Items</summary>
+            <div className="stack-sm shop-section-body">
+              {Object.entries(SELLABLE_ITEMS).map(([itemId, item]) => {
+                const owned = inventory[itemId] ?? 0;
+                return (
+                  <button key={itemId} type="button" disabled={owned < 1} onClick={() => onSellItem(itemId)}>
+                    Sell {item.name} (+${item.sellPrice}) {owned > 0 ? `(x${owned})` : ''}
+                  </button>
+                );
+              })}
+            </div>
+          </details>
+        )}
       </div>
     </section>
   );

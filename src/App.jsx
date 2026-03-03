@@ -238,6 +238,26 @@ export default function App() {
         inventory={gameState.inventory}
         hotbarItems={gameState.hotbarItems}
         selectedHotbar={gameState.selectedTool}
+        onChangeHotbarItems={(nextHotbarItems) =>
+          setGameState((prevState) => {
+            const nextState = {
+              ...prevState,
+              hotbarItems: nextHotbarItems,
+            };
+
+            if (
+              prevState.selectedTool?.kind === 'item' &&
+              !nextHotbarItems.includes(prevState.selectedTool.id)
+            ) {
+              return {
+                ...nextState,
+                selectedTool: { kind: 'tool', id: 'hoe' },
+              };
+            }
+
+            return nextState;
+          })
+        }
         onSelectHotbar={(selection) =>
           setGameState((prevState) => ({
             ...prevState,
