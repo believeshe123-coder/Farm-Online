@@ -6,6 +6,7 @@ export function tileToGlyph(tile) {
     growing: '🌱',
     ready: '🌾',
     coop: '🐔',
+    barn: '🏚️',
   };
 
   return glyphMap[tile.type] ?? '❔';

@@ -1,5 +1,13 @@
 import { CROPS } from '../game/constants';
 
+function getEffectiveGrowTime(crop, cropState) {
+  if (crop.wateredGrowMultiplier && cropState?.watered) {
+    return crop.growTime * crop.wateredGrowMultiplier;
+  }
+
+  return crop.growTime;
+}
+
 function getSpotVisual(spot, tick) {
   if (!spot?.crop) {
     if (spot?.soil === 'hoed') {
@@ -18,7 +26,7 @@ function getSpotVisual(spot, tick) {
     return { glyph: '∩', className: 'is-planted' };
   }
 
-  const progress = (tick - spot.crop.plantedAtTick) / crop.growTime;
+  const progress = (tick - spot.crop.plantedAtTick) / getEffectiveGrowTime(crop, spot.crop);
   if (progress < 0.34) {
     return { glyph: '∩', className: 'is-planted' };
   }
@@ -28,7 +36,7 @@ function getSpotVisual(spot, tick) {
   }
 
   if (progress >= 1) {
-    return { glyph: spot.crop.cropId === 'wheat' ? 'W' : 'C', className: 'is-ready' };
+    return { glyph: crop.symbol ?? crop.name[0].toUpperCase(), className: 'is-ready' };
   }
 
   return { glyph: '^', className: 'is-planted' };

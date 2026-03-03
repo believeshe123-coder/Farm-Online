@@ -62,7 +62,8 @@ export default function TileInspector({
   }
 
   const crop = selectedSpot.crop ? CROPS[selectedSpot.crop.cropId] : null;
-  const progress = crop ? (tick - selectedSpot.crop.plantedAtTick) / crop.growTime : null;
+  const effectiveGrowTime = crop?.wateredGrowMultiplier && selectedSpot.crop?.watered ? crop.growTime * crop.wateredGrowMultiplier : crop?.growTime;
+  const progress = crop ? (tick - selectedSpot.crop.plantedAtTick) / effectiveGrowTime : null;
   const stage = progress === null ? 'None' : getStage(progress);
   const canHarvest = Boolean(progress !== null && progress >= 1);
 
@@ -79,8 +80,13 @@ export default function TileInspector({
         <strong>Soil:</strong> {selectedSpot.soil}
       </p>
       <p>
-        <strong>Crop:</strong> {selectedSpot.crop ? selectedSpot.crop.cropId : 'None'}
+        <strong>Crop:</strong> {selectedSpot.crop ? `${crop?.name ?? selectedSpot.crop.cropId} (${selectedSpot.crop.cropId})` : 'None'}
       </p>
+      {selectedSpot.crop && (
+        <p>
+          <strong>Watered:</strong> {selectedSpot.crop.watered ? 'Yes' : 'No'}
+        </p>
+      )}
       {crop && progress !== null && (
         <p>
           <strong>Progress:</strong> {Math.max(0, Math.min(100, Math.floor(progress * 100)))}% ({stage})
