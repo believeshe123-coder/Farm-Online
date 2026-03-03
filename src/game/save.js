@@ -1,5 +1,6 @@
 const SAVE_KEY = 'homestead_save_v1';
 const DEFAULT_RENDER_MODE = 'glyph';
+const MAX_HOTBAR_ITEM_SLOTS = 8;
 const FIXED_GRID_SIZE = 5;
 const TOTAL_TILES = FIXED_GRID_SIZE * FIXED_GRID_SIZE;
 
@@ -53,7 +54,7 @@ function normalizeHotbarItems(hotbarItems, inventory) {
   const normalized = [];
 
   hotbarItems.forEach((itemId) => {
-    if (typeof itemId !== 'string' || seen.has(itemId) || normalized.length >= 2) {
+    if (typeof itemId !== 'string' || seen.has(itemId) || normalized.length >= MAX_HOTBAR_ITEM_SLOTS) {
       return;
     }
 
@@ -70,7 +71,7 @@ function normalizeHotbarItems(hotbarItems, inventory) {
       normalized.push('wheat_seed');
     }
 
-    if ((inventory?.carrot_seed ?? 0) > 0 && normalized.length < 2) {
+    if ((inventory?.carrot_seed ?? 0) > 0 && normalized.length < MAX_HOTBAR_ITEM_SLOTS) {
       normalized.push('carrot_seed');
     }
   }

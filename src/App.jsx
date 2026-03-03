@@ -81,9 +81,10 @@ export default function App() {
         return;
       }
 
-      if (event.key === '3' || event.key === '4') {
+      const hotbarKeys = ['3', '4', '5', '6', '7', '8', '9', '0'];
+      if (hotbarKeys.includes(event.key)) {
         setGameState((prevState) => {
-          const slotIndex = Number(event.key) - 3;
+          const slotIndex = hotbarKeys.indexOf(event.key);
           const itemId = prevState.hotbarItems?.[slotIndex];
           if (!itemId) {
             return prevState;

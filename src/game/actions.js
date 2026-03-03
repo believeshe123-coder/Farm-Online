@@ -104,7 +104,9 @@ function getHarvestSeedId(cropId) {
   return `${cropId}_seed`;
 }
 
-function addItemToHotbar(hotbarItems = [], itemId, maxItemSlots = 2) {
+const MAX_HOTBAR_ITEM_SLOTS = 8;
+
+function addItemToHotbar(hotbarItems = [], itemId, maxItemSlots = MAX_HOTBAR_ITEM_SLOTS) {
   if (hotbarItems.includes(itemId)) {
     return hotbarItems;
   }

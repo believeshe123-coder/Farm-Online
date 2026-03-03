@@ -202,13 +202,11 @@ h3 {
 }
 
 .game-layout {
-  padding-bottom: 110px;
+  padding-bottom: 1rem;
 }
 
 .backpack-bar {
-  position: fixed;
-  left: 0;
-  bottom: 0;
+  position: relative;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -223,8 +221,56 @@ h3 {
 
 .backpack-hotbar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(70px, 90px));
-  gap: 0.5rem;
+  grid-template-columns: repeat(10, minmax(56px, 74px));
+  gap: 0.45rem;
+}
+
+.inventory-toggle {
+  border: 1px solid #a77a51;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  background: linear-gradient(180deg, rgba(103, 71, 45, 0.95) 0%, rgba(82, 55, 36, 0.97) 100%);
+  color: #f5e7cf;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.inventory-toggle:hover {
+  border-color: #dfae79;
+}
+
+.backpack-inventory-popup {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(100% + 0.6rem);
+  padding: 0.5rem;
+  border: 1px solid #8b6747;
+  border-radius: 8px;
+  background: rgba(45, 29, 20, 0.96);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.backpack-bag {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(42px, 56px));
+  gap: 0.35rem;
+}
+
+.backpack-bag-slot {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 1px solid #8b6747;
+  border-radius: 6px;
+  background: rgba(45, 29, 20, 0.88);
+  color: #dcbf9a;
+  display: grid;
+  place-items: center;
+  font-size: 0.58rem;
+}
+
+.backpack-bag-slot.is-empty {
+  color: #8f7259;
 }
 
 .backpack-slot {
@@ -282,11 +328,19 @@ h3 {
   }
 
   .backpack-hotbar {
-    grid-template-columns: repeat(4, minmax(56px, 1fr));
+    grid-template-columns: repeat(5, minmax(56px, 1fr));
+  }
+
+  .backpack-bag {
+    grid-template-columns: repeat(6, minmax(34px, 1fr));
+  }
+
+  .backpack-inventory-popup {
+    width: min(95vw, 430px);
   }
 
   .game-layout {
-    padding-bottom: 180px;
+    padding-bottom: 1rem;
   }
 }
 
