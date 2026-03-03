@@ -15,7 +15,7 @@ function withMockedRandom(value, callback) {
   }
 }
 
-test('planting and harvesting carrot credits inventory under carrot key', () => {
+test('planting requires watering and harvesting carrot credits inventory under carrot key', () => {
   const plotIndex = 6;
   const spotIndex = 0;
 
@@ -24,6 +24,20 @@ test('planting and harvesting carrot credits inventory under carrot key', () => 
   state = {
     ...state,
     selectedTool: { kind: 'tool', id: 'hoe' },
+  };
+  state = onSpotClick(state, plotIndex, spotIndex);
+
+  state = {
+    ...state,
+    selectedTool: { kind: 'item', id: 'carrot_seed' },
+  };
+  state = onSpotClick(state, plotIndex, spotIndex);
+
+  assert.equal(state.plots[plotIndex].spots[spotIndex].crop, null);
+
+  state = {
+    ...state,
+    selectedTool: { kind: 'tool', id: 'water' },
   };
   state = onSpotClick(state, plotIndex, spotIndex);
 
@@ -83,7 +97,7 @@ test('placing barn consumes money and changes tile type', () => {
   assert.equal(barnState.money, state.money - SHOP_BUILDINGS.barn.buyPrice);
 });
 
-test('unwatered lettuce harvest becomes wilted lettuce', () => {
+test('watered lettuce harvest produces lettuce instead of wilted lettuce', () => {
   const plotIndex = 6;
   const spotIndex = 1;
   let state = {
@@ -95,17 +109,20 @@ test('unwatered lettuce harvest becomes wilted lettuce', () => {
   state = { ...state, selectedTool: { kind: 'tool', id: 'hoe' } };
   state = onSpotClick(state, plotIndex, spotIndex);
 
+  state = { ...state, selectedTool: { kind: 'tool', id: 'water' } };
+  state = onSpotClick(state, plotIndex, spotIndex);
+
   state = { ...state, selectedTool: { kind: 'item', id: 'lettuce_seed' } };
   state = onSpotClick(state, plotIndex, spotIndex);
 
   state = { ...state, tick: CROPS.lettuce.growTime };
   state = withMockedRandom(0.99, () => harvestSpot(state, plotIndex, spotIndex));
 
-  assert.equal(state.inventory.lettuce_wilted ?? 0, 1);
-  assert.equal(state.inventory.lettuce ?? 0, 0);
+  assert.equal(state.inventory.lettuce ?? 0, 1);
+  assert.equal(state.inventory.lettuce_wilted ?? 0, 0);
 });
 
-test('strawberry regrows after first harvest', () => {
+test('harvesting resets planted spots to dry hoed soil', () => {
   const plotIndex = 6;
   const spotIndex = 2;
   let state = {
@@ -116,6 +133,8 @@ test('strawberry regrows after first harvest', () => {
 
   state = { ...state, selectedTool: { kind: 'tool', id: 'hoe' } };
   state = onSpotClick(state, plotIndex, spotIndex);
+  state = { ...state, selectedTool: { kind: 'tool', id: 'water' } };
+  state = onSpotClick(state, plotIndex, spotIndex);
   state = { ...state, selectedTool: { kind: 'item', id: 'strawberry_seed' } };
   state = onSpotClick(state, plotIndex, spotIndex);
 
@@ -123,8 +142,8 @@ test('strawberry regrows after first harvest', () => {
   state = withMockedRandom(0.99, () => harvestSpot(state, plotIndex, spotIndex));
 
   assert.equal(state.inventory.strawberry ?? 0, 1);
-  assert.ok(state.plots[plotIndex].spots[spotIndex].crop);
-  assert.equal(state.plots[plotIndex].spots[spotIndex].crop.regrowHarvestsRemaining, 0);
+  assert.equal(state.plots[plotIndex].spots[spotIndex].crop, null);
+  assert.equal(state.plots[plotIndex].spots[spotIndex].soil, 'hoed');
 });
 
 
@@ -156,6 +175,8 @@ test('fireflower mutation bonus yield can trigger in harvest', () => {
   };
 
   state = { ...state, selectedTool: { kind: 'tool', id: 'hoe' } };
+  state = onSpotClick(state, plotIndex, spotIndex);
+  state = { ...state, selectedTool: { kind: 'tool', id: 'water' } };
   state = onSpotClick(state, plotIndex, spotIndex);
   state = { ...state, selectedTool: { kind: 'item', id: 'fireflower_seed' } };
   state = onSpotClick(state, plotIndex, spotIndex);
