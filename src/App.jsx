@@ -233,7 +233,7 @@ export default function App() {
             unlockablePlots={unlockablePlots}
             onUnlockPlot={(plotIndex) => setGameState((prevState) => unlockPlot(prevState, plotIndex))}
             onBuySeed={(itemId) => setGameState((prevState) => buyItem(prevState, itemId))}
-            onSellItem={(itemId) => setGameState((prevState) => sellItem(prevState, itemId))}
+            onSellItem={(itemId, qty = 1) => setGameState((prevState) => sellItem(prevState, itemId, qty))}
           />
         </aside>
       </main>

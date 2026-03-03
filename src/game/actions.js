@@ -111,7 +111,17 @@ function debrisToInventoryItem(debris) {
   return null;
 }
 
+function getRandomCropId() {
+  const cropIds = Object.keys(CROPS);
+  const randomIndex = Math.floor(Math.random() * cropIds.length);
+  return cropIds[randomIndex] ?? null;
+}
+
 function spotToCropId(seedId) {
+  if (seedId === 'seeds') {
+    return getRandomCropId();
+  }
+
   if (!seedId?.endsWith('_seed')) {
     return null;
   }
