@@ -1,7 +1,26 @@
+function getRandomDebris() {
+  const roll = Math.random();
+
+  if (roll < 0.25) {
+    return 'wood';
+  }
+
+  if (roll < 0.5) {
+    return 'grass';
+  }
+
+  if (roll < 0.75) {
+    return 'rock';
+  }
+
+  return null;
+}
+
 function createSpot() {
   return {
     soil: 'raw',
     crop: null,
+    debris: getRandomDebris(),
   };
 }
 
@@ -14,13 +33,8 @@ function createPlot() {
 export function createNewGame() {
   const gridSize = 5;
   const totalTiles = gridSize * gridSize;
-  const centerStart = 1;
-  const centerEnd = 3;
-  const unlockedTiles = Array.from({ length: totalTiles }, (_, index) => {
-    const col = index % gridSize;
-    const row = Math.floor(index / gridSize);
-    return row >= centerStart && row <= centerEnd && col >= centerStart && col <= centerEnd;
-  });
+  const centerIndex = Math.floor(totalTiles / 2);
+  const unlockedTiles = Array.from({ length: totalTiles }, (_, index) => index === centerIndex);
 
   return {
     tick: 0,
@@ -30,12 +44,8 @@ export function createNewGame() {
     tiles: Array.from({ length: totalTiles }, () => ({ type: 'empty' })),
     plots: Array.from({ length: totalTiles }, createPlot),
     unlockedTiles,
-    inventory: {
-      wheat_seed: 3,
-      carrot_seed: 2,
-      turnip_seed: 2,
-    },
-    hotbarItems: ['wheat_seed', 'carrot_seed', 'turnip_seed'],
+    inventory: {},
+    hotbarItems: [],
     selected: null,
     selectedTool: { kind: 'tool', id: 'hoe' },
     uiMessage: '',

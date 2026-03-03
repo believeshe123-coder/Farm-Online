@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS } from '../game/constants';
 
 export default function ShopPanel({
@@ -10,6 +10,7 @@ export default function ShopPanel({
   totalPlots,
   unlockCost,
   canUnlockPlot,
+  unlockablePlots,
   onUnlockPlot,
   onBuySeed,
   onSellItem,
@@ -17,6 +18,18 @@ export default function ShopPanel({
   const [activeTab, setActiveTab] = useState('shop');
   const [isOpen, setIsOpen] = useState(true);
   const canBuild = selectedPlotIndex !== null;
+  const [selectedPlotToUnlock, setSelectedPlotToUnlock] = useState('');
+
+  useEffect(() => {
+    if (unlockablePlots.length === 0) {
+      setSelectedPlotToUnlock('');
+      return;
+    }
+
+    if (!unlockablePlots.includes(Number(selectedPlotToUnlock))) {
+      setSelectedPlotToUnlock(String(unlockablePlots[0]));
+    }
+  }, [unlockablePlots, selectedPlotToUnlock]);
 
   if (!isOpen) {
     return (
@@ -97,7 +110,27 @@ export default function ShopPanel({
             <details open>
               <summary>Plots</summary>
               <div className="stack-sm shop-section-body">
-                <button type="button" disabled={!canUnlockPlot} onClick={onUnlockPlot}>
+                {unlockablePlots.length > 0 && (
+                  <label>
+                    Plot to buy
+                    <select
+                      value={selectedPlotToUnlock}
+                      onChange={(event) => setSelectedPlotToUnlock(event.target.value)}
+                    >
+                      <option value="">Choose a plot</option>
+                      {unlockablePlots.map((plotIndex) => (
+                        <option key={plotIndex} value={plotIndex}>
+                          Plot {plotIndex + 1}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <button
+                  type="button"
+                  disabled={!canUnlockPlot || selectedPlotToUnlock === ''}
+                  onClick={() => onUnlockPlot(Number(selectedPlotToUnlock))}
+                >
                   {unlockedPlotCount >= totalPlots ? 'Unlock Plot (All plots unlocked)' : `Unlock Plot - $${unlockCost}`}
                 </button>
               </div>

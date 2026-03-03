@@ -13,6 +13,7 @@ import {
   breedChicken,
   getUnlockPlotCostForState,
   getUnlockablePlotCount,
+  getUnlockablePlots,
   harvestSpot,
   onSpotClick,
   placeBuilding,
@@ -148,6 +149,7 @@ export default function App() {
   const unlockCost = getUnlockPlotCostForState(gameState);
   const canUnlockPlot = getUnlockablePlotCount(gameState) > 0 && gameState.money >= unlockCost;
   const selectedPlotIndex = gameState.selected?.plotIndex ?? null;
+  const unlockablePlots = getUnlockablePlots(gameState);
   const selectedSpotIndex = gameState.selected?.spotIndex ?? null;
   const selectedPlot = selectedPlotIndex === null ? null : gameState.plots[selectedPlotIndex];
   const selectedSpot =
@@ -228,7 +230,8 @@ export default function App() {
             totalPlots={totalPlots}
             unlockCost={unlockCost}
             canUnlockPlot={canUnlockPlot}
-            onUnlockPlot={() => setGameState((prevState) => unlockPlot(prevState))}
+            unlockablePlots={unlockablePlots}
+            onUnlockPlot={(plotIndex) => setGameState((prevState) => unlockPlot(prevState, plotIndex))}
             onBuySeed={(itemId) => setGameState((prevState) => buyItem(prevState, itemId))}
             onSellItem={(itemId) => setGameState((prevState) => sellItem(prevState, itemId))}
           />
