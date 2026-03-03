@@ -1,5 +1,35 @@
-import { useEffect, useState } from 'react';
-import { SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS } from '../game/constants';
+import { useEffect, useMemo, useState } from 'react';
+import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS } from '../game/constants';
+
+function buildSellSections(inventory) {
+  const cropIds = new Set(Object.keys(CROPS));
+  const allEntries = Object.entries(SELLABLE_ITEMS);
+
+  const sections = [
+    {
+      id: 'crops',
+      title: 'Crops',
+      items: allEntries.filter(([itemId]) => cropIds.has(itemId)),
+    },
+    {
+      id: 'seeds',
+      title: 'Seeds',
+      items: allEntries.filter(([itemId]) => itemId === 'seeds' || itemId.endsWith('_seed')),
+    },
+    {
+      id: 'other',
+      title: 'Other',
+      items: allEntries.filter(([itemId]) => !cropIds.has(itemId) && itemId !== 'seeds' && !itemId.endsWith('_seed')),
+    },
+  ];
+
+  return sections
+    .map((section) => ({
+      ...section,
+      totalOwned: section.items.reduce((total, [itemId]) => total + (inventory[itemId] ?? 0), 0),
+    }))
+    .filter((section) => section.items.length > 0);
+}
 
 export default function ShopPanel({
   selectedPlotIndex,
@@ -19,6 +49,7 @@ export default function ShopPanel({
   const [isOpen, setIsOpen] = useState(true);
   const canBuild = selectedPlotIndex !== null;
   const [selectedPlotToUnlock, setSelectedPlotToUnlock] = useState('');
+  const sellSections = useMemo(() => buildSellSections(inventory), [inventory]);
 
   useEffect(() => {
     if (unlockablePlots.length === 0) {
@@ -139,19 +170,37 @@ export default function ShopPanel({
         )}
 
         {activeTab === 'sell' && (
-          <details open>
-            <summary>Sell Items</summary>
-            <div className="stack-sm shop-section-body">
-              {Object.entries(SELLABLE_ITEMS).map(([itemId, item]) => {
-                const owned = inventory[itemId] ?? 0;
-                return (
-                  <button key={itemId} type="button" disabled={owned < 1} onClick={() => onSellItem(itemId)}>
-                    Sell {item.name} (+${item.sellPrice}) {owned > 0 ? `(x${owned})` : ''}
+          <>
+            {sellSections.map((section) => (
+              <details key={section.id} open>
+                <summary>{section.title}</summary>
+                <div className="stack-sm shop-section-body">
+                  <button
+                    type="button"
+                    disabled={section.totalOwned < 1}
+                    onClick={() => {
+                      section.items.forEach(([itemId]) => {
+                        const qty = inventory[itemId] ?? 0;
+                        if (qty > 0) {
+                          onSellItem(itemId, qty);
+                        }
+                      });
+                    }}
+                  >
+                    Sell all in this section
                   </button>
-                );
-              })}
-            </div>
-          </details>
+                  {section.items.map(([itemId, item]) => {
+                    const owned = inventory[itemId] ?? 0;
+                    return (
+                      <button key={itemId} type="button" disabled={owned < 1} onClick={() => onSellItem(itemId)}>
+                        Sell {item.name} (+${item.sellPrice}) {owned > 0 ? `(x${owned})` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </details>
+            ))}
+          </>
         )}
       </div>
     </section>

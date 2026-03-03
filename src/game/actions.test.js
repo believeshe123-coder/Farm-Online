@@ -30,6 +30,26 @@ function clearDebrisAndPrepareSoil(state, plotIndex, spotIndex) {
   return nextState;
 }
 
+
+test('generic seeds plant a random crop', () => {
+  const plotIndex = 12;
+  const spotIndex = 0;
+  let state = {
+    ...createNewGame(),
+    inventory: { seeds: 1 },
+    hotbarItems: ['seeds'],
+  };
+
+  state = clearDebrisAndPrepareSoil(state, plotIndex, spotIndex);
+  const seedsBeforePlanting = state.inventory.seeds ?? 0;
+
+  state = { ...state, selectedTool: { kind: 'item', id: 'seeds' } };
+  state = withMockedRandom(0, () => onSpotClick(state, plotIndex, spotIndex));
+
+  assert.equal(state.plots[plotIndex].spots[spotIndex].crop?.cropId, 'wheat');
+  assert.equal(state.inventory.seeds ?? 0, seedsBeforePlanting - 1);
+});
+
 test('planting requires watering and harvesting carrot credits inventory under carrot key', () => {
   const plotIndex = 12;
   const spotIndex = 0;
@@ -145,6 +165,17 @@ test('harvesting resets planted spots to dry hoed soil', () => {
   assert.equal(state.plots[plotIndex].spots[spotIndex].soil, 'hoed');
 });
 
+
+
+test('all crop-specific seeds are sellable', () => {
+  for (const [cropId, crop] of Object.entries(CROPS)) {
+    const seedId = `${cropId}_seed`;
+    assert.deepEqual(SELLABLE_ITEMS[seedId], {
+      name: `${crop.name} Seeds`,
+      sellPrice: crop.seedBuyPrice,
+    });
+  }
+});
 
 test('shop seeds include all requested crops', () => {
   const expectedCropIds = [
