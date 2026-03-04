@@ -425,6 +425,68 @@ export function onSpotClick(state, plotIndex, spotIndex) {
   };
 }
 
+export function waterSpot(state, plotIndex, spotIndex) {
+  if (!isTileUnlocked(state, plotIndex)) {
+    return state;
+  }
+
+  const plot = state.plots?.[plotIndex];
+  const spot = plot?.spots?.[spotIndex];
+  if (!spot) {
+    return state;
+  }
+
+  if (spot.crop) {
+    const nextPlots = [...state.plots];
+    const nextSpots = [...plot.spots];
+    nextSpots[spotIndex] = {
+      ...spot,
+      crop: {
+        ...spot.crop,
+        watered: true,
+        lastWateredTick: state.tick,
+      },
+      soil: 'watered',
+    };
+
+    nextPlots[plotIndex] = {
+      ...plot,
+      spots: nextSpots,
+    };
+
+    return {
+      ...state,
+      plots: nextPlots,
+      selected: { plotIndex, spotIndex },
+    };
+  }
+
+  if (spot.soil === 'hoed' && spot.crop === null) {
+    const nextPlots = [...state.plots];
+    const nextSpots = [...plot.spots];
+    nextSpots[spotIndex] = {
+      ...spot,
+      soil: 'watered',
+    };
+
+    nextPlots[plotIndex] = {
+      ...plot,
+      spots: nextSpots,
+    };
+
+    return {
+      ...state,
+      plots: nextPlots,
+      selected: { plotIndex, spotIndex },
+    };
+  }
+
+  return {
+    ...state,
+    selected: { plotIndex, spotIndex },
+  };
+}
+
 export function selectSpot(state, plotIndex, spotIndex = 0) {
   if (!isTileUnlocked(state, plotIndex)) {
     return state;

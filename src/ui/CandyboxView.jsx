@@ -1,5 +1,6 @@
 import { DAY_TICKS } from '../game/economy';
 import { getAvailableActions } from './candyboxActions';
+import { getPlotSummaryCounts, getSuggestedNextAction, getTileTypeSummary } from './candyboxSummary';
 
 function formatInventorySummary(inventory = {}) {
   const entries = Object.entries(inventory)
@@ -9,6 +10,14 @@ function formatInventorySummary(inventory = {}) {
     .map(([itemId, qty]) => `${itemId}:${qty}`);
 
   return entries.length > 0 ? entries.join(' · ') : 'empty';
+}
+
+function formatTileTypeSummary(tileTypeSummary) {
+  const entries = Object.entries(tileTypeSummary)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, count]) => `${type}:${count}`);
+
+  return entries.length > 0 ? entries.join(' · ') : 'none';
 }
 
 export default function CandyboxView({
@@ -21,10 +30,14 @@ export default function CandyboxView({
   canGoNextPlot,
   onPrevPlot,
   onNextPlot,
+  onSelectPlot,
+  activeSpotGroup,
+  onSpotGroupChange,
   onTill,
   onWater,
   onHarvestSelected,
-  onHarvestReady,
+  onHarvestReadyOnActivePlot,
+  onWaterDryPlantedOnActivePlot,
   onClearDebris,
   onPlant,
   onSellOne,
@@ -35,6 +48,19 @@ export default function CandyboxView({
 }) {
   const day = Math.floor(state.tick / DAY_TICKS) + 1;
   const tickInDay = (state.tick % DAY_TICKS) + 1;
+  const unlockedPlotIndexes = state.unlockedTiles
+    .map((isUnlocked, plotIndex) => (isUnlocked ? plotIndex : null))
+    .filter((plotIndex) => Number.isInteger(plotIndex));
+
+  const { byPlot } = getPlotSummaryCounts(state);
+  const activePlotSummary = byPlot[selectedPlotIndex] ?? {
+    readyCrops: 0,
+    emptySoil: 0,
+    debris: 0,
+    dryPlanted: 0,
+  };
+  const tileTypeSummary = getTileTypeSummary(state);
+  const suggestedNextAction = getSuggestedNextAction(state, selectedPlotIndex);
 
   const logLines = [
     state.uiMessage,
@@ -57,7 +83,8 @@ export default function CandyboxView({
       onTill,
       onWater,
       onHarvestSelected,
-      onHarvestReady,
+      onHarvestReadyOnActivePlot,
+      onWaterDryPlantedOnActivePlot,
       onClearDebris,
       onPlant,
       onSellOne,
@@ -72,11 +99,43 @@ export default function CandyboxView({
         ${state.money} · Tick {state.tick} · Day {day} (t{tickInDay}/{DAY_TICKS}) · Plot {selectedPlotIndex + 1} · Spot {selectedSpotIndex + 1}
       </p>
       <p className="muted">Inventory: {formatInventorySummary(state.inventory)}</p>
+      <p className="muted">Tiles: {formatTileTypeSummary(tileTypeSummary)}</p>
 
       <div className="stack-row">
         <button type="button" disabled={!canGoPrevPlot} onClick={onPrevPlot}>Prev plot</button>
         <button type="button" disabled={!canGoNextPlot} onClick={onNextPlot}>Next plot</button>
       </div>
+
+      <section className="panel stack-sm">
+        <strong>Summary selectors</strong>
+        <label htmlFor="plot-selector">
+          Active plot
+          <select
+            id="plot-selector"
+            value={selectedPlotIndex}
+            onChange={(event) => onSelectPlot(Number(event.target.value))}
+          >
+            {unlockedPlotIndexes.map((plotIndex) => (
+              <option key={plotIndex} value={plotIndex}>Plot {plotIndex + 1}</option>
+            ))}
+          </select>
+        </label>
+
+        <label htmlFor="spot-group-selector">
+          Active spot group
+          <select
+            id="spot-group-selector"
+            value={activeSpotGroup}
+            onChange={(event) => onSpotGroupChange(event.target.value)}
+          >
+            <option value="all">all spots</option>
+            <option value="ready">ready crops ({activePlotSummary.readyCrops})</option>
+            <option value="empty">empty soil ({activePlotSummary.emptySoil})</option>
+            <option value="debris">debris ({activePlotSummary.debris})</option>
+          </select>
+        </label>
+        <p className="muted">Suggested next action: {suggestedNextAction.label}</p>
+      </section>
 
       <section className="panel">
         <strong>Selected</strong>
