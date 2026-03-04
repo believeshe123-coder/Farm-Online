@@ -1,4 +1,5 @@
 import { DAY_TICKS } from '../game/economy';
+import { getAvailableActions } from './candyboxActions';
 
 function formatInventorySummary(inventory = {}) {
   const entries = Object.entries(inventory)
@@ -44,39 +45,25 @@ export default function CandyboxView({
       .map(([itemId, qty]) => `Overflow sold: ${itemId} x${qty}`)),
   ].filter(Boolean).slice(0, 8);
 
-  const actionButtons = [];
-
-  if (selectedSpot?.debris) {
-    actionButtons.push({ label: `Clear ${selectedSpot.debris}`, onClick: onClearDebris });
-  }
-
-  if (selectedSpot && selectedSpot.soil === 'raw' && !selectedSpot.crop) {
-    actionButtons.push({ label: 'Till selected plot', onClick: onTill });
-  }
-
-  if (selectedSpot?.crop) {
-    actionButtons.push({ label: 'Water selected crop', onClick: onWater });
-    actionButtons.push({ label: 'Harvest selected crop', onClick: onHarvestSelected });
-  }
-
-  if (selectedSpot && !selectedSpot.crop && (selectedSpot.soil === 'hoed' || selectedSpot.soil === 'watered')) {
-    plantableSeeds.forEach((seed) => {
-      actionButtons.push({
-        label: `Plant ${seed.label}`,
-        onClick: () => onPlant(seed.itemId),
-      });
-    });
-  }
-
-  actionButtons.push({ label: 'Harvest ready crops', onClick: onHarvestReady });
-
-  sellableItems.forEach((item) => {
-    actionButtons.push({ label: `Sell 1 ${item.itemId}`, onClick: () => onSellOne(item.itemId) });
-  });
-
-  if (canUnlockSelected) {
-    actionButtons.push({ label: 'Unlock selected plot', onClick: onUnlockSelected });
-  }
+  const unlockedPlotCount = state.unlockedTiles?.filter(Boolean)?.length ?? 1;
+  const actionButtons = getAvailableActions({
+    ...state,
+    selectedSpot,
+    plantableSeeds,
+    sellableItems,
+    canUnlockSelected,
+    unlockSelectedCost: 25 * unlockedPlotCount,
+    handlers: {
+      onTill,
+      onWater,
+      onHarvestSelected,
+      onHarvestReady,
+      onClearDebris,
+      onPlant,
+      onSellOne,
+      onUnlockSelected,
+    },
+  }).filter((action) => action.isVisible);
 
   return (
     <main className="panel candybox-view stack-sm">
@@ -110,7 +97,7 @@ export default function CandyboxView({
       <section className="panel stack-sm">
         <strong>Actions</strong>
         {actionButtons.map((action) => (
-          <button key={action.label} type="button" onClick={action.onClick}>{action.label}</button>
+          <button key={action.id} type="button" onClick={action.execute} disabled={!action.isEnabled}>{action.label}</button>
         ))}
       </section>
     </main>
