@@ -1,6 +1,6 @@
-import { CROPS, SELLABLE_ITEMS, getZoneCycleConfig } from './constants.js';
+import { CROPS, SELLABLE_ITEMS, MARKET_DAILY_UPDATE_INTERVAL, MARKET_WEEKLY_UPDATE_INTERVAL, clampMarketPrice, getBaselineMarketPrices, getZoneCycleConfig } from './constants.js';
 import { DAY_TICKS, canAffordFromPools } from './economy.js';
-import { applyCost, applyYield, canAffordCost, isCropHydratedAtTick } from './actions.js';
+import { applyCost, applyYield, canAffordCost, getCurrentSellPrice, isCropHydratedAtTick } from './actions.js';
 import {
   allocateWorkersByPriority,
   getAverageAssignmentFatigue,
@@ -8,6 +8,7 @@ import {
   updateWorkerFatigue,
   withAutomationDefaults,
 } from './workers.js';
+import { processContractDeadlines, refreshContractOffers, settleContractSales } from './contracts.js';
 
 function addInventoryItem(inventory, itemId, amount = 1) {
   return {
@@ -69,6 +70,93 @@ function getAssignmentId(kind, index) {
   return `${kind}:${index}`;
 }
 
+
+function updateMarketPrices(state, tick) {
+  const baselinePrices = getBaselineMarketPrices();
+  const currentPrices = state.market?.prices ?? baselinePrices;
+  const currentTrends = state.market?.trends ?? {};
+  const isDaily = tick % MARKET_DAILY_UPDATE_INTERVAL === 0;
+  const isWeekly = tick % MARKET_WEEKLY_UPDATE_INTERVAL === 0;
+
+  if (!isDaily && !isWeekly) {
+    return state;
+  }
+
+  const nextPrices = { ...currentPrices };
+  const nextTrends = { ...currentTrends };
+
+  Object.keys(baselinePrices).forEach((itemId) => {
+    const config = SELLABLE_ITEMS[itemId];
+    const previous = currentPrices[itemId] ?? baselinePrices[itemId];
+    let multiplier = 1;
+
+    if (isDaily) {
+      multiplier += (Math.random() * 2 - 1) * (config.dailyVolatility ?? 0);
+    }
+
+    if (isWeekly) {
+      multiplier += (Math.random() * 2 - 1) * (config.weeklyVolatility ?? 0);
+    }
+
+    const updatedPrice = clampMarketPrice(itemId, previous * multiplier);
+    nextPrices[itemId] = updatedPrice;
+    nextTrends[itemId] = Number((((updatedPrice - previous) / Math.max(1, previous)) * 100).toFixed(2));
+  });
+
+  return {
+    ...state,
+    market: {
+      prices: nextPrices,
+      trends: nextTrends,
+      lastDailyUpdateTick: isDaily ? tick : (state.market?.lastDailyUpdateTick ?? 0),
+      lastWeeklyUpdateTick: isWeekly ? tick : (state.market?.lastWeeklyUpdateTick ?? 0),
+    },
+  };
+}
+
+function processGlobalAutoSell(state, nextTick) {
+  const policy = state.autoSellPolicy ?? {};
+  if (!policy.enabled) {
+    return state;
+  }
+
+  let nextState = state;
+  let nextInventory = state.inventory;
+  const soldMap = {};
+
+  Object.keys(nextInventory).forEach((itemId) => {
+    if (!SELLABLE_ITEMS[itemId]) {
+      return;
+    }
+
+    const minStockByItem = policy.minStockByItem ?? {};
+    const minStock = Math.max(0, Number(minStockByItem[itemId] ?? policy.defaultMinStock ?? 0) || 0);
+    const current = nextInventory[itemId] ?? 0;
+    const qtyToSell = Math.max(0, current - minStock);
+    if (qtyToSell <= 0) {
+      return;
+    }
+
+    nextInventory = applyInventoryCost(nextInventory, { [itemId]: qtyToSell });
+    const price = getCurrentSellPrice(nextState, itemId);
+    nextState = applyYield(nextState, { coins: qtyToSell * price });
+    soldMap[itemId] = (soldMap[itemId] ?? 0) + qtyToSell;
+  });
+
+  const contractSettlement = settleContractSales(nextState.contracts, soldMap, nextTick);
+  nextState = {
+    ...nextState,
+    inventory: nextInventory,
+    contracts: contractSettlement.contractsState,
+  };
+
+  if (contractSettlement.bonusCoins > 0) {
+    nextState = applyYield(nextState, { coins: contractSettlement.bonusCoins });
+  }
+
+  return nextState;
+}
+
 function processAutoTrading(state, nextTick) {
   let nextState = state;
   let nextInventory = state.inventory;
@@ -93,7 +181,7 @@ function processAutoTrading(state, nextTick) {
           return;
         }
 
-        const buyPrice = (seedSell.sellPrice ?? 0) * 2;
+        const buyPrice = (getCurrentSellPrice(nextState, itemId) || seedSell.baselinePrice || 0) * 2;
         const affordableQty = Math.floor((nextState.money ?? 0) / buyPrice);
         const qty = Math.min(deficit, affordableQty);
         if (qty <= 0) {
@@ -115,7 +203,8 @@ function processAutoTrading(state, nextTick) {
         }
 
         nextInventory = applyInventoryCost(nextInventory, { [itemId]: qtyToSell });
-        nextState = applyYield(nextState, { coins: qtyToSell * SELLABLE_ITEMS[itemId].sellPrice });
+        const salePrice = getCurrentSellPrice(nextState, itemId);
+        nextState = applyYield(nextState, { coins: qtyToSell * salePrice });
         sellQueue.push({ itemId, qty: qtyToSell, tick: nextTick });
       });
     }
@@ -404,6 +493,18 @@ export function advanceTick(state) {
   };
 
   workingState = processAutoTrading(workingState, nextTick);
+  workingState = processGlobalAutoSell(workingState, nextTick);
+  workingState = updateMarketPrices(workingState, nextTick);
+
+  const deadlineResult = processContractDeadlines(workingState.contracts, nextTick);
+  workingState = {
+    ...workingState,
+    contracts: deadlineResult.contractsState,
+  };
+
+  if (deadlineResult.penalties > 0) {
+    workingState = applyCost(workingState, { coins: Math.min(deadlineResult.penalties, workingState.money ?? 0) });
+  }
 
   if (nextTick % DAY_TICKS === 0) {
     Object.entries(workingState.dailyUpkeepDemands ?? {}).forEach(([demandId, demandCost]) => {
@@ -415,6 +516,13 @@ export function advanceTick(state) {
     });
 
     workingState = applyYield(workingState, { water: 3 });
+
+    if (nextTick % MARKET_WEEKLY_UPDATE_INTERVAL === 0) {
+      workingState = {
+        ...workingState,
+        contracts: refreshContractOffers(workingState.contracts, nextTick),
+      };
+    }
   }
 
   return {

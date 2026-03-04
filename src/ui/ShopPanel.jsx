@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CROPS, getZoneNetProduction, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, ZONE_DEFINITIONS } from '../game/constants';
 
-function buildSellSections(inventory) {
+function buildSellSections(inventory, marketPrices = {}) {
   const cropIds = new Set(Object.keys(CROPS));
   const allEntries = Object.entries(SELLABLE_ITEMS);
 
@@ -9,17 +9,17 @@ function buildSellSections(inventory) {
     {
       id: 'crops',
       title: 'Crops',
-      items: allEntries.filter(([itemId]) => cropIds.has(itemId)),
+      items: allEntries.filter(([itemId]) => cropIds.has(itemId)).map(([itemId, item]) => [itemId, { ...item, sellPrice: marketPrices[itemId] ?? item.baselinePrice }]),
     },
     {
       id: 'seeds',
       title: 'Seeds',
-      items: allEntries.filter(([itemId]) => itemId === 'seeds' || itemId.endsWith('_seed')),
+      items: allEntries.filter(([itemId]) => itemId === 'seeds' || itemId.endsWith('_seed')).map(([itemId, item]) => [itemId, { ...item, sellPrice: marketPrices[itemId] ?? item.baselinePrice }]),
     },
     {
       id: 'other',
       title: 'Other',
-      items: allEntries.filter(([itemId]) => !cropIds.has(itemId) && itemId !== 'seeds' && !itemId.endsWith('_seed')),
+      items: allEntries.filter(([itemId]) => !cropIds.has(itemId) && itemId !== 'seeds' && !itemId.endsWith('_seed')).map(([itemId, item]) => [itemId, { ...item, sellPrice: marketPrices[itemId] ?? item.baselinePrice }]),
     },
   ];
 
@@ -48,6 +48,13 @@ export default function ShopPanel({
   onSetPlotZone,
   onSetPlotPolicy,
   onSetPlotWorkers,
+  marketPrices,
+  marketTrends,
+  contracts,
+  autoSellPolicy,
+  onAcceptContract,
+  onSetAutoSellPolicy,
+  onSetAutoSellItemThreshold,
 }) {
   const [activeTab, setActiveTab] = useState('shop');
   const [isOpen, setIsOpen] = useState(true);
@@ -55,7 +62,8 @@ export default function ShopPanel({
   const canBuild = selectedPlotIndex !== null;
   const [selectedPlotToUnlock, setSelectedPlotToUnlock] = useState('');
   const [selectedZoneToUnlock, setSelectedZoneToUnlock] = useState('field');
-  const sellSections = useMemo(() => buildSellSections(inventory), [inventory]);
+  const [autoSellItemId, setAutoSellItemId] = useState('wheat');
+  const sellSections = useMemo(() => buildSellSections(inventory, marketPrices), [inventory, marketPrices]);
   const visibleSeedEntries = useMemo(
     () => Object.entries(SHOP_SEEDS).filter(([, item]) => showUnaffordable || money >= item.buyPrice),
     [money, showUnaffordable]
@@ -125,6 +133,15 @@ export default function ShopPanel({
           onClick={() => setActiveTab('sell')}
         >
           Sell
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'market'}
+          className={activeTab === 'market' ? 'is-active' : ''}
+          onClick={() => setActiveTab('market')}
+        >
+          Market
         </button>
       </div>
 
@@ -299,6 +316,85 @@ export default function ShopPanel({
             ))}
           </>
         )}
+
+        {activeTab === 'market' && (
+          <>
+            <details open>
+              <summary>Current prices and trends</summary>
+              <div className="stack-sm shop-section-body">
+                {Object.entries(SELLABLE_ITEMS).map(([itemId, item]) => {
+                  const price = marketPrices?.[itemId] ?? item.baselinePrice;
+                  const trend = marketTrends?.[itemId] ?? 0;
+                  const trendPrefix = trend > 0 ? '+' : '';
+                  return (
+                    <p key={itemId} className="muted">
+                      {item.name}: ${price} ({trendPrefix}{trend}%)
+                    </p>
+                  );
+                })}
+              </div>
+            </details>
+
+            <details open>
+              <summary>Contracts</summary>
+              <div className="stack-sm shop-section-body">
+                <p className="muted">Reputation: x{(contracts?.reputation ?? 1).toFixed(2)}</p>
+                {(contracts?.offers ?? []).map((contract) => (
+                  <button key={contract.id} type="button" onClick={() => onAcceptContract(contract.id)}>
+                    Accept: Deliver {contract.requiredQty} {contract.itemId} by tick {contract.deadlineTick} for ${contract.baseReward}
+                  </button>
+                ))}
+                {(contracts?.offers ?? []).length === 0 && <p className="muted">No offers available right now.</p>}
+                {(contracts?.active ?? []).map((contract) => (
+                  <p key={contract.id} className="muted">
+                    Active: {contract.itemId} {contract.deliveredQty}/{contract.requiredQty} (deadline: {contract.deadlineTick})
+                  </p>
+                ))}
+              </div>
+            </details>
+
+            <details open>
+              <summary>Auto-sell policy</summary>
+              <div className="stack-sm shop-section-body">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(autoSellPolicy?.enabled)}
+                    onChange={(event) => onSetAutoSellPolicy({ enabled: event.target.checked })}
+                  />{' '}
+                  Enable global auto-sell
+                </label>
+                <label>
+                  Default minimum stock
+                  <input
+                    type="number"
+                    min="0"
+                    value={autoSellPolicy?.defaultMinStock ?? 0}
+                    onChange={(event) => onSetAutoSellPolicy({ defaultMinStock: Number(event.target.value) || 0 })}
+                  />
+                </label>
+                <label>
+                  Item threshold
+                  <select value={autoSellItemId} onChange={(event) => setAutoSellItemId(event.target.value)}>
+                    {Object.entries(SELLABLE_ITEMS).map(([itemId, item]) => (
+                      <option key={itemId} value={itemId}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Keep at least
+                  <input
+                    type="number"
+                    min="0"
+                    value={autoSellPolicy?.minStockByItem?.[autoSellItemId] ?? autoSellPolicy?.defaultMinStock ?? 0}
+                    onChange={(event) => onSetAutoSellItemThreshold(autoSellItemId, Number(event.target.value) || 0)}
+                  />
+                </label>
+              </div>
+            </details>
+          </>
+        )}
+
       </div>
     </section>
   );

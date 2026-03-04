@@ -1,5 +1,7 @@
 import { BUILDING_MAINTENANCE, BUILDING_OPERATING_COSTS, DAILY_UPKEEP_DEMANDS, createInitialResourcePools } from './economy.js';
 import { createInitialWorkers, withAutomationDefaults } from './workers.js';
+import { createInitialContractState } from './contracts.js';
+import { getBaselineMarketPrices } from './constants.js';
 
 export function getRandomDebris() {
   const roll = Math.random();
@@ -49,6 +51,7 @@ export function createNewGame() {
   const unlockedTiles = Array.from({ length: totalTiles }, (_, index) => index === centerIndex);
 
   const resourcePools = createInitialResourcePools();
+  const marketPrices = getBaselineMarketPrices();
 
   return {
     tick: 0,
@@ -67,6 +70,14 @@ export function createNewGame() {
       upkeepEnabled: false,
     },
     sellQueue: [],
+    market: {
+      prices: marketPrices,
+      trends: Object.fromEntries(Object.keys(marketPrices).map((itemId) => [itemId, 0])),
+      lastDailyUpdateTick: 0,
+      lastWeeklyUpdateTick: 0,
+    },
+    contracts: createInitialContractState(0),
+    autoSellPolicy: { enabled: false, defaultMinStock: 0, minStockByItem: {} },
     unlockedTiles,
     resourcePools,
     dailyUpkeepDemands: structuredClone(DAILY_UPKEEP_DEMANDS),

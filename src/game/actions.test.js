@@ -16,7 +16,7 @@ import {
   applyCost,
   applyYield,
 } from './actions.js';
-import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS } from './constants.js';
+import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS, getSellPriceBounds } from './constants.js';
 import { advanceTick } from './tick.js';
 
 function withMockedRandom(value, callback) {
@@ -155,7 +155,7 @@ test('selling item increases money and reduces inventory', () => {
 
   const nextState = sellItem(state, 'egg');
 
-  assert.equal(nextState.money, state.money + SELLABLE_ITEMS.egg.sellPrice);
+  assert.equal(nextState.money, state.money + SELLABLE_ITEMS.egg.baselinePrice);
   assert.equal(nextState.inventory.egg, 1);
 });
 
@@ -363,7 +363,11 @@ test('all crop-specific seeds are sellable', () => {
     const seedId = `${cropId}_seed`;
     assert.deepEqual(SELLABLE_ITEMS[seedId], {
       name: `${crop.name} Seeds`,
-      sellPrice: crop.seedBuyPrice,
+      baselinePrice: crop.seedBuyPrice,
+      dailyVolatility: 0.04,
+      weeklyVolatility: 0.08,
+      minMultiplier: 0.75,
+      maxMultiplier: 1.3,
     });
   }
 });
@@ -665,4 +669,75 @@ test('automation routes output above threshold to sell queue', () => {
   assert.equal(state.inventory.wheat, 3);
   assert.ok((state.sellQueue ?? []).some((entry) => entry.itemId === 'wheat' && entry.qty === 7));
   assert.ok(state.money > createNewGame().money);
+});
+
+
+test('market price updates stay within configured bounds', () => {
+  let state = createNewGame();
+  for (let i = 0; i < 24 * 21; i += 1) {
+    state = advanceTick(state);
+  }
+
+  Object.keys(SELLABLE_ITEMS).forEach((itemId) => {
+    const price = state.market.prices[itemId];
+    const bounds = getSellPriceBounds(itemId);
+    assert.ok(price >= bounds.minPrice && price <= bounds.maxPrice, `Price out of bounds for ${itemId}: ${price}`);
+  });
+});
+
+test('contract completion applies reward payout', () => {
+  let state = createNewGame();
+  const contract = {
+    id: 'test-contract',
+    itemId: 'egg',
+    requiredQty: 2,
+    deliveredQty: 0,
+    baseReward: 20,
+    acceptedTick: state.tick,
+    deadlineTick: state.tick + 100,
+  };
+
+  state = {
+    ...state,
+    inventory: { egg: 2 },
+    contracts: {
+      ...state.contracts,
+      reputation: 1,
+      active: [contract],
+      offers: [],
+    },
+  };
+
+  const nextState = sellItem(state, 'egg', 2);
+  assert.equal(nextState.contracts.active.length, 0);
+  assert.equal(nextState.contracts.completed.length, 1);
+  assert.equal(nextState.money, state.money + (SELLABLE_ITEMS.egg.baselinePrice * 2) + 20);
+});
+
+test('missing contract deadline applies penalties', () => {
+  let state = createNewGame();
+  state = {
+    ...state,
+    money: 100,
+    contracts: {
+      ...state.contracts,
+      active: [{
+        id: 'late-contract',
+        itemId: 'wood',
+        requiredQty: 5,
+        deliveredQty: 0,
+        baseReward: 40,
+        acceptedTick: 0,
+        deadlineTick: 1,
+      }],
+      offers: [],
+    },
+  };
+
+  state = advanceTick(state);
+  state = advanceTick(state);
+
+  assert.equal(state.contracts.active.length, 0);
+  assert.equal(state.contracts.failed.length, 1);
+  assert.equal(state.money, 90);
 });
