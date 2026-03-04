@@ -242,7 +242,7 @@ export default function App() {
             unlockCost={unlockCost}
             canUnlockPlot={canUnlockPlot}
             unlockablePlots={unlockablePlots}
-            onUnlockPlot={(plotIndex) => setGameState((prevState) => unlockPlot(prevState, plotIndex))}
+            onUnlockPlot={(plotIndex, plotProfile) => setGameState((prevState) => unlockPlot(prevState, plotIndex, plotProfile))}
             onBuySeed={(itemId) => setGameState((prevState) => buyItem(prevState, itemId))}
             onSellItem={(itemId, qty = 1) => setGameState((prevState) => sellItem(prevState, itemId, qty))}
           />
