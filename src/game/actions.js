@@ -1,5 +1,6 @@
 import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS } from './constants.js';
 import { createPlot } from './createNewGame.js';
+import { applyCostToPools, applyYieldToPools, canAffordFromPools } from './economy.js';
 
 const BASE_UNLOCK_PLOT_COST = 25;
 
@@ -93,6 +94,57 @@ function adjustInventory(inventory, itemId, delta) {
   }
 
   return nextInventory;
+}
+
+function getWorkingResourcePools(state) {
+  const basePools = state.resourcePools ?? {};
+  const coinPool = basePools.coins ?? { amount: 0, capacity: Infinity };
+  const syncedCoinAmount = Math.max(coinPool.amount ?? 0, state.money ?? 0);
+
+  return {
+    ...basePools,
+    coins: {
+      ...coinPool,
+      amount: syncedCoinAmount,
+    },
+  };
+}
+
+function withSynchronizedCoins(state, resourcePools) {
+  return {
+    ...state,
+    resourcePools,
+    money: resourcePools?.coins?.amount ?? state.money,
+  };
+}
+
+export function canAffordCost(state, costMap) {
+  const pools = getWorkingResourcePools(state);
+  return canAffordFromPools(pools, costMap);
+}
+
+export function applyCost(state, costMap) {
+  const pools = getWorkingResourcePools(state);
+  const { resourcePools, paid } = applyCostToPools(pools, costMap);
+  if (!paid) {
+    return state;
+  }
+
+  return withSynchronizedCoins(state, resourcePools);
+}
+
+export function applyYield(state, yieldMap, overflowSaleMap = {}) {
+  const pools = getWorkingResourcePools(state);
+  const { resourcePools, overflow, soldAtLossCoins } = applyYieldToPools(pools, yieldMap, overflowSaleMap);
+
+  return {
+    ...withSynchronizedCoins(state, resourcePools),
+    economyStatus: {
+      ...(state.economyStatus ?? {}),
+      lastOverflow: overflow,
+      lastSoldAtLossCoins: soldAtLossCoins,
+    },
+  };
 }
 
 
@@ -446,10 +498,12 @@ export function sellItem(state, itemId, qty = 1) {
   const nextHotbarItems = cleanupHotbarItems(state.hotbarItems, nextInventory);
   const shouldResetSelectedTool = state.selectedTool?.kind === 'item' && !nextHotbarItems.includes(state.selectedTool.id);
 
+  const coinGain = sellableItem.sellPrice * qty;
+  const yieldedState = applyYield(state, { coins: coinGain });
+
   return {
-    ...state,
+    ...yieldedState,
     inventory: nextInventory,
-    money: state.money + sellableItem.sellPrice * qty,
     hotbarItems: nextHotbarItems,
     selectedTool: shouldResetSelectedTool ? { kind: 'tool', id: 'hoe' } : state.selectedTool,
   };
@@ -466,7 +520,7 @@ export function buyItem(state, itemId, qty = 1) {
   }
 
   const totalCost = shopItem.buyPrice * qty;
-  if (state.money < totalCost) {
+  if (!canAffordCost(state, { coins: totalCost })) {
     return state;
   }
 
@@ -475,9 +529,10 @@ export function buyItem(state, itemId, qty = 1) {
     return state;
   }
 
+  const paidState = applyCost(state, { coins: totalCost });
+
   return {
-    ...state,
-    money: state.money - totalCost,
+    ...paidState,
     inventory: nextInventory,
     hotbarItems: addItemToHotbar(state.hotbarItems, itemId),
   };
@@ -494,7 +549,7 @@ export function unlockPlot(state, tileToUnlock) {
   }
 
   const unlockCost = getUnlockPlotCost(state);
-  if (state.money < unlockCost) {
+  if (!canAffordCost(state, { coins: unlockCost })) {
     return state;
   }
 
@@ -504,9 +559,10 @@ export function unlockPlot(state, tileToUnlock) {
   const nextPlots = [...state.plots];
   nextPlots[tileToUnlock] = createPlot();
 
+  const paidState = applyCost(state, { coins: unlockCost });
+
   return {
-    ...state,
-    money: state.money - unlockCost,
+    ...paidState,
     unlockedTiles: nextUnlockedTiles,
     plots: nextPlots,
     uiMessage: '',
@@ -536,7 +592,7 @@ export function placeBuilding(state, tileId, buildingId) {
   }
 
   const building = SHOP_BUILDINGS[buildingId];
-  if (!building || state.money < building.buyPrice) {
+  if (!building || !canAffordCost(state, { coins: building.buyPrice })) {
     return state;
   }
 
@@ -592,10 +648,15 @@ export function placeBuilding(state, tileId, buildingId) {
     return state;
   }
 
+  const paidState = applyCost(state, { coins: building.buyPrice });
+
   return {
-    ...state,
-    money: state.money - building.buyPrice,
+    ...paidState,
     tiles: nextTiles,
+    buildingMaintenanceTimers: {
+      ...(state.buildingMaintenanceTimers ?? {}),
+      [tileId]: 0,
+    },
   };
 }
 
@@ -624,8 +685,16 @@ export function collectResourceFromTile(state, tileId) {
     },
   };
 
+  const resourceYield = resource.itemId === 'rock'
+    ? { stone: resource.amount }
+    : { [resource.itemId]: resource.amount };
+  const yieldedState = applyYield(state, resourceYield, {
+    wood: SELLABLE_ITEMS.wood?.sellPrice ?? 0,
+    stone: SELLABLE_ITEMS.rock?.sellPrice ?? 0,
+  });
+
   return {
-    ...state,
+    ...yieldedState,
     tiles: nextTiles,
     inventory: nextInventory,
     hotbarItems: addItemToHotbar(state.hotbarItems, resource.itemId),

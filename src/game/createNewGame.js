@@ -1,3 +1,5 @@
+import { BUILDING_MAINTENANCE, BUILDING_OPERATING_COSTS, DAILY_UPKEEP_DEMANDS, createInitialResourcePools } from './economy.js';
+
 export function getRandomDebris() {
   const roll = Math.random();
 
@@ -36,14 +38,27 @@ export function createNewGame() {
   const centerIndex = Math.floor(totalTiles / 2);
   const unlockedTiles = Array.from({ length: totalTiles }, (_, index) => index === centerIndex);
 
+  const resourcePools = createInitialResourcePools();
+
   return {
     tick: 0,
-    money: 10,
+    money: resourcePools.coins.amount,
     renderMode: 'glyph',
     gridSize,
     tiles: Array.from({ length: totalTiles }, () => ({ type: 'empty' })),
     plots: Array.from({ length: totalTiles }, createPlot),
     unlockedTiles,
+    resourcePools,
+    dailyUpkeepDemands: structuredClone(DAILY_UPKEEP_DEMANDS),
+    buildingOperatingCosts: structuredClone(BUILDING_OPERATING_COSTS),
+    buildingMaintenanceConfig: structuredClone(BUILDING_MAINTENANCE),
+    buildingMaintenanceTimers: {},
+    economyStatus: {
+      lastShortages: [],
+      lastOverflow: {},
+      lastSoldAtLossCoins: 0,
+      lastUpkeepTick: 0,
+    },
     inventory: {},
     hotbarItems: [],
     selected: null,

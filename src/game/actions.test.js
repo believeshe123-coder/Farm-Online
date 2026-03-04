@@ -12,6 +12,9 @@ import {
   collectResourceFromTile,
   sellItem,
   unlockPlot,
+  canAffordCost,
+  applyCost,
+  applyYield,
 } from './actions.js';
 import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS } from './constants.js';
 import { advanceTick } from './tick.js';
@@ -461,4 +464,78 @@ test('clicking debris clears it and awards resources', () => {
 
   assert.equal(state.plots[plotIndex].spots[spotIndex].debris, null);
   assert.equal(state.inventory.wood, 1);
+});
+
+
+test('resource costs block actions correctly through canAfford/apply helpers', () => {
+  const state = createNewGame();
+
+  assert.equal(canAffordCost(state, { coins: 5, energy: 5 }), true);
+  assert.equal(canAffordCost(state, { coins: 1000 }), false);
+
+  const blockedState = applyCost(state, { energy: 999 });
+  assert.equal(blockedState, state);
+
+  const paidState = applyCost(state, { coins: 3, energy: 2 });
+  assert.equal(paidState.resourcePools.coins.amount, state.resourcePools.coins.amount - 3);
+  assert.equal(paidState.resourcePools.energy.amount, state.resourcePools.energy.amount - 2);
+});
+
+test('daily upkeep drains resources per day tick', () => {
+  let state = createNewGame();
+  state = {
+    ...state,
+    tick: 23,
+    resourcePools: {
+      ...state.resourcePools,
+      feed: { ...state.resourcePools.feed, amount: 10 },
+      energy: { ...state.resourcePools.energy, amount: 10 },
+      water: { ...state.resourcePools.water, amount: 10 },
+    },
+  };
+
+  state = advanceTick(state);
+
+  assert.equal(state.resourcePools.feed.amount, 8);
+  assert.equal(state.resourcePools.energy.amount, 9);
+  assert.equal(state.resourcePools.water.amount, 12);
+});
+
+test('shortages reduce output and storage overflow is sold at loss', () => {
+  let state = createNewGame();
+  state = {
+    ...state,
+    resourcePools: {
+      ...state.resourcePools,
+      feed: { amount: 0, capacity: 200 },
+      labor: { amount: 0, capacity: 100 },
+      energy: { amount: 0, capacity: 100 },
+      water: { amount: 99, capacity: 100 },
+      coins: { amount: 500, capacity: 999999 },
+    },
+    money: 500,
+    dailyUpkeepDemands: { pumps: { energy: 0, water: 0 } },
+    tick: 23,
+  };
+
+  state = placeBuilding(state, 12, 'coop');
+  state = {
+    ...state,
+    resourcePools: { ...state.resourcePools, coins: { ...state.resourcePools.coins, amount: 0 } },
+    money: 0,
+  };
+  state = {
+    ...state,
+    tiles: state.tiles.map((tile, index) => (index === 12 ? { ...tile, animals: tile.animals.map((a) => ({ ...a, eggTimer: 1 })) } : tile)),
+  };
+
+  state = advanceTick(state);
+
+  assert.equal(state.inventory.egg ?? 0, 0);
+  assert.equal(state.economyStatus.lastShortages.some((entry) => entry.startsWith('idle:coop:12')), true);
+
+  const afterOverflow = applyYield(state, { water: 10 }, { water: 2 });
+  assert.equal(afterOverflow.resourcePools.water.amount, 100);
+  assert.equal(afterOverflow.resourcePools.coins.amount > state.resourcePools.coins.amount, true);
+  assert.equal(afterOverflow.economyStatus.lastOverflow.water > 0, true);
 });
