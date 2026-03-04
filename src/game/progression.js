@@ -1,5 +1,47 @@
 import { DAY_TICKS } from './economy.js';
 
+export const PROGRESSION_STEPS = ['start', 'gathering', 'trading', 'helpers', 'expansion', 'expedition'];
+
+export const revealRules = {
+  start: {},
+  gathering: {
+    elapsedTicks: 8,
+    actionsByVerb: {
+      cut_tree: 1,
+      cut_grass: 1,
+      break_rock: 1,
+    },
+  },
+  trading: {
+    elapsedTicks: 20,
+    lifetimeResourcesGathered: {
+      wood: 2,
+      stone: 2,
+    },
+  },
+  helpers: {
+    elapsedTicks: 35,
+    lifetimeResourcesSold: {
+      wood: 2,
+    },
+  },
+  expansion: {
+    elapsedTicks: 55,
+    lifetimeResourcesSold: {
+      wood: 4,
+      rock: 2,
+    },
+    workersHired: 0,
+  },
+  expedition: {
+    elapsedTicks: 80,
+    lifetimeResourcesGathered: {
+      stone: 8,
+    },
+    workersHired: 0,
+  },
+};
+
 export const TECH_NODES = {
   automation: {
     id: 'automation',
@@ -87,20 +129,82 @@ export const MILESTONES = {
 };
 
 const BASE_UNLOCKS = {
-  buildings: new Set(['coop', 'barn', 'forest', 'silo', 'mill', 'market_stall']),
-  zones: new Set(['field', 'forest']),
+  buildings: new Set(),
+  zones: new Set(),
   recipes: new Set([]),
 };
 
-export function createInitialProgressionState() {
+const STEP_UNLOCKS = {
+  start: {
+    buildings: ['coop', 'barn', 'forest', 'silo', 'mill', 'market_stall'],
+    zones: ['field', 'forest'],
+    recipes: [],
+  },
+  gathering: {
+    buildings: ['mine'],
+    zones: ['quarry'],
+    recipes: [],
+  },
+  trading: {
+    buildings: ['truck'],
+    zones: [],
+    recipes: [],
+  },
+  helpers: {
+    buildings: ['workshop'],
+    zones: [],
+    recipes: ['flour'],
+  },
+  expansion: {
+    buildings: [],
+    zones: ['greenhouse'],
+    recipes: [],
+  },
+  expedition: {
+    buildings: [],
+    zones: ['seed_lab', 'pasture'],
+    recipes: ['feed'],
+  },
+};
+
+export function createInitialProgressionState(startingWorkerCount = 0) {
   return {
     researchPoints: 0,
     researchedTechs: [],
+    revealed: ['start'],
+    stats: {
+      actionCounts: {},
+      lifetimeGathered: {},
+      lifetimeSold: {},
+      startingWorkerCount,
+    },
     milestones: {
       positiveBalanceDays: 0,
       completed: [],
     },
     notifications: [],
+  };
+}
+
+function withDefaultProgressionState(progression, state = null) {
+  const baselineWorkers = state?.workers?.length ?? progression?.stats?.startingWorkerCount ?? 0;
+  return {
+    ...createInitialProgressionState(baselineWorkers),
+    ...(progression ?? {}),
+    revealed: Array.isArray(progression?.revealed) ? progression.revealed : ['start'],
+    stats: {
+      actionCounts: {},
+      lifetimeGathered: {},
+      lifetimeSold: {},
+      startingWorkerCount: baselineWorkers,
+      ...(progression?.stats ?? {}),
+    },
+    milestones: {
+      positiveBalanceDays: 0,
+      completed: [],
+      ...(progression?.milestones ?? {}),
+    },
+    notifications: Array.isArray(progression?.notifications) ? progression.notifications : [],
   };
 }
 
@@ -120,29 +224,154 @@ export function getResearchPointGeneration(state) {
 }
 
 export function getUnlockedFeatures(progression) {
+  const safeProgression = withDefaultProgressionState(progression);
   const unlocked = {
     buildings: new Set(BASE_UNLOCKS.buildings),
     zones: new Set(BASE_UNLOCKS.zones),
     recipes: new Set(BASE_UNLOCKS.recipes),
   };
 
-  (progression?.researchedTechs ?? []).forEach((techId) => {
-    const tech = TECH_NODES[techId];
-    if (!tech) {
+  (safeProgression.revealed ?? []).forEach((stepId) => {
+    const unlocks = STEP_UNLOCKS[stepId];
+    if (!unlocks) {
       return;
     }
 
-    (tech.unlocks?.buildings ?? []).forEach((id) => unlocked.buildings.add(id));
-    (tech.unlocks?.zones ?? []).forEach((id) => unlocked.zones.add(id));
-    (tech.unlocks?.recipes ?? []).forEach((id) => unlocked.recipes.add(id));
+    (unlocks.buildings ?? []).forEach((id) => unlocked.buildings.add(id));
+    (unlocks.zones ?? []).forEach((id) => unlocked.zones.add(id));
+    (unlocks.recipes ?? []).forEach((id) => unlocked.recipes.add(id));
   });
 
   return unlocked;
 }
 
 export function isFeatureUnlocked(state, type, id) {
-  const unlocked = getUnlockedFeatures(state.progression);
+  const unlocked = getUnlockedFeatures(withDefaultProgressionState(state.progression, state));
   return unlocked[type]?.has(id) ?? false;
+}
+
+export function recordActionVerb(state, verb, amount = 1) {
+  if (!verb || amount <= 0) {
+    return state;
+  }
+
+  const progression = withDefaultProgressionState(state.progression, state);
+  const actionCounts = progression.stats?.actionCounts ?? {};
+  return {
+    ...state,
+    progression: {
+      ...progression,
+      stats: {
+        ...progression.stats,
+        actionCounts: {
+          ...actionCounts,
+          [verb]: (actionCounts[verb] ?? 0) + amount,
+        },
+      },
+    },
+  };
+}
+
+export function recordLifetimeResources(state, bucket, resources = {}) {
+  if (!bucket || (bucket !== 'lifetimeGathered' && bucket !== 'lifetimeSold')) {
+    return state;
+  }
+
+  const entries = Object.entries(resources).filter(([, amount]) => Number(amount) > 0);
+  if (entries.length === 0) {
+    return state;
+  }
+
+  const progression = withDefaultProgressionState(state.progression, state);
+  const current = progression.stats?.[bucket] ?? {};
+  const nextBucket = { ...current };
+
+  entries.forEach(([resourceId, amount]) => {
+    nextBucket[resourceId] = (nextBucket[resourceId] ?? 0) + amount;
+  });
+
+  return {
+    ...state,
+    progression: {
+      ...progression,
+      stats: {
+        ...progression.stats,
+        [bucket]: nextBucket,
+      },
+    },
+  };
+}
+
+function doesRulePass(rule = {}, state, progression) {
+  const elapsedTicks = state.tick ?? 0;
+  if (typeof rule.elapsedTicks === 'number' && elapsedTicks < rule.elapsedTicks) {
+    return false;
+  }
+
+  const actionCounts = progression.stats?.actionCounts ?? {};
+  const gathered = progression.stats?.lifetimeGathered ?? {};
+  const sold = progression.stats?.lifetimeSold ?? {};
+
+  if (!Object.entries(rule.actionsByVerb ?? {}).every(([verb, amount]) => (actionCounts[verb] ?? 0) >= amount)) {
+    return false;
+  }
+
+  if (!Object.entries(rule.lifetimeResourcesGathered ?? {}).every(([resourceId, amount]) => (gathered[resourceId] ?? 0) >= amount)) {
+    return false;
+  }
+
+  if (!Object.entries(rule.lifetimeResourcesSold ?? {}).every(([resourceId, amount]) => (sold[resourceId] ?? 0) >= amount)) {
+    return false;
+  }
+
+  const startingWorkers = progression.stats?.startingWorkerCount ?? (state.workers?.length ?? 0);
+  const workersHired = Math.max(0, (state.workers?.length ?? 0) - startingWorkers);
+  if (typeof rule.workersHired === 'number' && workersHired < rule.workersHired) {
+    return false;
+  }
+
+  return true;
+}
+
+export function applyProgressionReveals(state) {
+  const progression = withDefaultProgressionState(state.progression, state);
+  const alreadyRevealed = new Set(progression.revealed ?? []);
+  const revealedNow = [];
+
+  for (const stepId of PROGRESSION_STEPS) {
+    if (alreadyRevealed.has(stepId)) {
+      continue;
+    }
+
+    const rule = revealRules[stepId] ?? {};
+    if (!doesRulePass(rule, state, progression)) {
+      break;
+    }
+
+    alreadyRevealed.add(stepId);
+    revealedNow.push(stepId);
+  }
+
+  if (revealedNow.length === 0) {
+    return {
+      ...state,
+      progression,
+    };
+  }
+
+  let nextProgression = {
+    ...progression,
+    revealed: PROGRESSION_STEPS.filter((stepId) => alreadyRevealed.has(stepId)),
+  };
+
+  revealedNow.forEach((stepId) => {
+    nextProgression = addNotification(nextProgression, `Progression unlocked: ${stepId}`);
+  });
+
+  return {
+    ...state,
+    progression: nextProgression,
+  };
 }
 
 export function getProgressionEffects(progression) {

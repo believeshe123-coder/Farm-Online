@@ -9,7 +9,7 @@ import {
   withAutomationDefaults,
 } from './workers.js';
 import { processContractDeadlines, refreshContractOffers, settleContractSales } from './contracts.js';
-import { applyDailyProgression, getProgressionEffects, getScaledUpkeepCost, isFeatureUnlocked } from './progression.js';
+import { applyDailyProgression, applyProgressionReveals, getProgressionEffects, getScaledUpkeepCost, isFeatureUnlocked, recordLifetimeResources } from './progression.js';
 
 function addInventoryItem(inventory, itemId, amount = 1) {
   return {
@@ -341,6 +341,8 @@ function processGlobalAutoSell(state, nextTick) {
     contracts: contractSettlement.contractsState,
   };
 
+  nextState = recordLifetimeResources(nextState, 'lifetimeSold', soldMap);
+
   if (contractSettlement.bonusCoins > 0) {
     nextState = applyYield(nextState, { coins: contractSettlement.bonusCoins });
   }
@@ -396,6 +398,7 @@ function processAutoTrading(state, nextTick) {
         nextInventory = applyInventoryCost(nextInventory, { [itemId]: qtyToSell });
         const salePrice = getCurrentSellPrice(nextState, itemId);
         nextState = applyYield(nextState, { coins: qtyToSell * salePrice });
+        nextState = recordLifetimeResources(nextState, 'lifetimeSold', { [itemId]: qtyToSell });
         sellQueue.push({ itemId, qty: qtyToSell, tick: nextTick });
       });
     }
@@ -721,6 +724,10 @@ export function advanceTick(state) {
 
     workingState = applyYield(workingState, { water: 3 });
 
+    if (nextTick % (DAY_TICKS * 3) === 0) {
+      workingState = applyYield(workingState, { permits: 1 });
+    }
+
     if (nextTick % MARKET_WEEKLY_UPDATE_INTERVAL === 0) {
       workingState = {
         ...workingState,
@@ -730,6 +737,7 @@ export function advanceTick(state) {
   }
 
   workingState = applyDailyProgression(workingState, nextTick);
+  workingState = applyProgressionReveals(workingState);
 
   return {
     ...workingState,

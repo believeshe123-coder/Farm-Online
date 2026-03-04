@@ -97,6 +97,12 @@ export function createNewGame() {
     selectedTool: { kind: 'tool', id: 'hoe' },
     uiMessage: '',
     buildingChain: createInitialBuildingChainState(),
-    progression: createInitialProgressionState(),
+    minigames: {
+      tree: { inputTiming: 0.5 },
+      grass: { streak: 0 },
+      rock: { charge: 0, critWindow: false },
+      lastOutcome: '',
+    },
+    progression: createInitialProgressionState(6),
   };
 }

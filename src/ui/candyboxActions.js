@@ -1,17 +1,30 @@
-const EARLY_GAME_VISIBLE_ACTION_LIMIT = 5;
+const MAX_ACTIONS_BY_TIER = {
+  start: 3,
+  gathering: 4,
+  trading: 4,
+  helpers: 5,
+  expansion: 6,
+  expedition: 6,
+};
 
-function hasMilestone(progression, milestoneId) {
-  return (progression?.milestones?.completed ?? []).includes(milestoneId);
+function hasReveal(progression, stepId) {
+  return (progression?.revealed ?? []).includes(stepId);
 }
 
-function hasTech(progression, techId) {
-  return (progression?.researchedTechs ?? []).includes(techId);
+function maybeAction(id, label, isVisible, isEnabled, execute) {
+  return {
+    id,
+    label,
+    isVisible,
+    isEnabled,
+    execute,
+  };
 }
 
-function isEarlyGame(progression) {
-  const techCount = progression?.researchedTechs?.length ?? 0;
-  const milestoneCount = progression?.milestones?.completed?.length ?? 0;
-  return techCount === 0 && milestoneCount === 0;
+function getTierCap(progression) {
+  const revealed = progression?.revealed ?? ['start'];
+  const highestTier = revealed[revealed.length - 1] ?? 'start';
+  return MAX_ACTIONS_BY_TIER[highestTier] ?? 3;
 }
 
 export function getAvailableActions(gameState) {
@@ -21,98 +34,117 @@ export function getAvailableActions(gameState) {
   const plantableSeeds = gameState.plantableSeeds ?? [];
   const sellableItems = gameState.sellableItems ?? [];
 
-  const automationUnlocked = hasTech(progression, 'automation');
-  const contractsUnlocked = hasTech(progression, 'logistics') || hasMilestone(progression, 'positive_balance_10_days');
-  const coopUnlocked = hasTech(progression, 'genetics') || hasMilestone(progression, 'positive_balance_10_days');
-  const researchUnlocked = (progression.researchPoints ?? 0) > 0 || hasMilestone(progression, 'positive_balance_10_days');
+  const tier1Visible = hasReveal(progression, 'start');
+  const tier2Visible = hasReveal(progression, 'trading');
+  const tier3Visible = hasReveal(progression, 'helpers');
+  const tier4Visible = hasReveal(progression, 'expansion');
+  const tier5Visible = hasReveal(progression, 'expansion');
+  const tier6Visible = hasReveal(progression, 'expedition');
+
+  const primarySeed = plantableSeeds[0];
+  const primarySell = sellableItems[0];
 
   const actions = [
-    {
-      id: 'clear-debris',
-      label: selectedSpot?.debris ? `Clear ${selectedSpot.debris}` : 'Clear debris',
-      isVisible: Boolean(selectedSpot?.debris),
-      isEnabled: Boolean(selectedSpot?.debris),
-      execute: handlers.onClearDebris,
-    },
-    {
-      id: 'till-selected',
-      label: 'Till selected plot',
-      isVisible: Boolean(selectedSpot && selectedSpot.soil === 'raw' && !selectedSpot.crop),
-      isEnabled: Boolean(selectedSpot && selectedSpot.soil === 'raw' && !selectedSpot.crop),
-      execute: handlers.onTill,
-    },
-    {
-      id: 'water-selected',
-      label: 'Water selected crop',
-      isVisible: Boolean(selectedSpot?.crop),
-      isEnabled: Boolean(selectedSpot?.crop),
-      execute: handlers.onWater,
-    },
-    {
-      id: 'harvest-selected',
-      label: 'Harvest selected crop',
-      isVisible: Boolean(selectedSpot?.crop),
-      isEnabled: Boolean(selectedSpot?.crop),
-      execute: handlers.onHarvestSelected,
-    },
-    ...plantableSeeds.map((seed) => ({
-      id: `plant-${seed.itemId}`,
-      label: `Plant ${seed.label}`,
-      isVisible: Boolean(selectedSpot && !selectedSpot.crop && (selectedSpot.soil === 'hoed' || selectedSpot.soil === 'watered')),
-      isEnabled: (gameState.inventory?.[seed.itemId] ?? 0) > 0,
-      execute: () => handlers.onPlant?.(seed.itemId),
-    })),
-    {
-      id: 'harvest-ready',
-      label: 'Harvest ready on active plot',
-      isVisible: automationUnlocked,
-      isEnabled: automationUnlocked,
-      execute: handlers.onHarvestReadyOnActivePlot,
-    },
-    {
-      id: 'water-dry-planted',
-      label: 'Water dry planted on active plot',
-      isVisible: automationUnlocked,
-      isEnabled: automationUnlocked,
-      execute: handlers.onWaterDryPlantedOnActivePlot,
-    },
-    ...sellableItems.map((item) => ({
-      id: `sell-${item.itemId}`,
-      label: `Sell 1 ${item.itemId}`,
-      isVisible: contractsUnlocked,
-      isEnabled: (gameState.inventory?.[item.itemId] ?? 0) > 0,
-      execute: () => handlers.onSellOne?.(item.itemId),
-    })),
-    {
-      id: 'unlock-selected',
-      label: 'Unlock selected plot',
-      isVisible: coopUnlocked && Boolean(gameState.canUnlockSelected),
-      isEnabled: Boolean(gameState.canUnlockSelected) && (gameState.money ?? 0) >= (gameState.unlockSelectedCost ?? 0),
-      execute: handlers.onUnlockSelected,
-    },
-    {
-      id: 'research-overview',
-      label: 'Research options (coming soon)',
-      isVisible: researchUnlocked,
-      isEnabled: false,
-      execute: undefined,
-    },
-  ].filter((action) => typeof action.execute === 'function' || action.id === 'research-overview');
+    // Tier 1: core resource verbs
+    maybeAction(
+      'cut-down-trees',
+      'Cut down trees',
+      tier1Visible,
+      Boolean(selectedSpot?.debris === 'wood'),
+      handlers.onClearDebris
+    ),
+    maybeAction(
+      'cut-grass',
+      'Cut grass',
+      tier1Visible,
+      Boolean(selectedSpot?.debris === 'seeds'),
+      handlers.onClearDebris
+    ),
+    maybeAction(
+      'break-rocks',
+      'Break rocks',
+      tier1Visible,
+      Boolean(selectedSpot?.debris === 'rock'),
+      handlers.onClearDebris
+    ),
 
-  if (!isEarlyGame(progression)) {
-    return actions;
-  }
+    // Tier 2: trade
+    maybeAction(
+      'sell-resources',
+      primarySell ? `Sell ${primarySell.itemId}` : 'Sell resources',
+      tier2Visible,
+      Boolean(primarySell),
+      primarySell ? () => handlers.onSellOne?.(primarySell.itemId) : undefined
+    ),
 
-  let visibleCount = 0;
-  return actions.map((action) => {
-    if (!action.isVisible) {
-      return action;
-    }
+    // Tier 3: helpers
+    maybeAction(
+      'hire-worker',
+      'Hire worker',
+      tier3Visible,
+      Boolean(handlers.onHireWorker)
+        && (gameState.money ?? 0) >= (gameState.nextHireCost?.coins ?? 0)
+        && ((gameState.resourcePools?.permits?.amount ?? 0) >= (gameState.nextHireCost?.permits ?? 0)),
+      handlers.onHireWorker
+    ),
 
-    visibleCount += 1;
-    return {
+    // Tier 4: upgrades
+    maybeAction(
+      'upgrade-workers',
+      'Upgrade workers',
+      tier4Visible,
+      Boolean(handlers.onUpgradeWorkers)
+        && (gameState.money ?? 0) >= (gameState.nextToolUpgradeCost?.coins ?? 0)
+        && ((gameState.resourcePools?.permits?.amount ?? 0) >= (gameState.nextToolUpgradeCost?.permits ?? 0)),
+      handlers.onUpgradeWorkers
+    ),
+
+    // Tier 5: land
+    maybeAction(
+      'buy-land',
+      'Buy land',
+      tier5Visible,
+      Boolean(gameState.canUnlockSelected)
+        && (gameState.money ?? 0) >= (gameState.unlockSelectedCost?.coins ?? 0)
+        && ((gameState.resourcePools?.permits?.amount ?? 0) >= (gameState.unlockSelectedCost?.permits ?? 0)),
+      handlers.onUnlockSelected
+    ),
+
+    // Tier 6+: expedition/minigame verbs
+    maybeAction(
+      'expedition',
+      'Go beyond',
+      tier6Visible,
+      false,
+      undefined
+    ),
+    maybeAction(
+      'strange-game',
+      'Play strange game',
+      tier6Visible,
+      false,
+      undefined
+    ),
+
+    // Keep a tiny utility action for early play loop
+    maybeAction(
+      'plant-seed',
+      primarySeed ? `Plant ${primarySeed.label}` : 'Plant seed',
+      tier1Visible,
+      Boolean(primarySeed && selectedSpot && !selectedSpot.crop && (selectedSpot.soil === 'hoed' || selectedSpot.soil === 'watered')),
+      primarySeed ? () => handlers.onPlant?.(primarySeed.itemId) : undefined
+    ),
+  ];
+
+  const cap = getTierCap(progression);
+
+  return actions
+    .filter((action) => action.isVisible)
+    .slice(0, cap)
+    .map((action) => ({
       ...action,
-      isVisible: visibleCount <= EARLY_GAME_VISIBLE_ACTION_LIMIT,
-    };
-  });
+      // keep unrevealed/future verbs visible but intentionally inert
+      execute: typeof action.execute === 'function' ? action.execute : () => {},
+      isEnabled: Boolean(action.isEnabled && typeof action.execute === 'function'),
+    }));
 }

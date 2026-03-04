@@ -10,8 +10,13 @@ import {
   onSpotClick,
   placeBuilding,
   collectResourceFromTile,
+  getLandCost,
+  getWorkerHireCost,
+  getWorkerToolUpgradeCost,
+  hireWorker,
   sellItem,
   unlockPlot,
+  upgradeWorkerTools,
   canAffordCost,
   applyCost,
   applyYield,
@@ -187,7 +192,14 @@ test('placing barn consumes money and changes tile type', () => {
 });
 
 test('placing forest and mine creates resource areas', () => {
-  const baseState = { ...createNewGame(), money: 1000, progression: { ...createNewGame().progression, researchedTechs: ['heavy_industry'] } };
+  const baseState = {
+    ...createNewGame(),
+    money: 1000,
+    progression: {
+      ...createNewGame().progression,
+      revealed: ['start', 'gathering'],
+    },
+  };
 
   const forestState = placeBuilding(baseState, 12, 'forest');
   const mineState = placeBuilding(baseState, 12, 'mine');
@@ -439,7 +451,7 @@ test('unlock plot requires choosing an adjacent locked tile', () => {
 
 test('unlocking a new plot sets default zone state', () => {
   const targetPlot = 7;
-  const baseState = { ...createNewGame(), money: 1000, progression: { ...createNewGame().progression, researchedTechs: ['heavy_industry'] } };
+  const baseState = { ...createNewGame(), money: 1000 };
   const unlockedState = unlockPlot(baseState, targetPlot);
 
   assert.equal(unlockedState.unlockedTiles[targetPlot], true);
@@ -450,7 +462,7 @@ test('unlocking a new plot sets default zone state', () => {
 
 test('unlocking can assign a plot zone type', () => {
   const targetPlot = 7;
-  const baseState = { ...createNewGame(), money: 1000, progression: { ...createNewGame().progression, researchedTechs: ['heavy_industry'] } };
+  const baseState = { ...createNewGame(), money: 1000 };
   const unlockedState = unlockPlot(baseState, targetPlot, 'forest');
 
   assert.equal(unlockedState.unlockedTiles[targetPlot], true);
@@ -538,7 +550,7 @@ test('daily upkeep drains resources per day tick', () => {
   let state = createNewGame();
   state = {
     ...state,
-    progression: { ...state.progression, researchedTechs: ['automation', 'genetics'] },
+    progression: { ...state.progression, revealed: ['start', 'helpers'] },
     tick: 23,
     resourcePools: {
       ...state.resourcePools,
@@ -559,7 +571,7 @@ test('shortages reduce output and storage overflow is sold at loss', () => {
   let state = createNewGame();
   state = {
     ...state,
-    progression: { ...state.progression, researchedTechs: ['automation', 'genetics'] },
+    progression: { ...state.progression, revealed: ['start', 'helpers'] },
     resourcePools: {
       ...state.resourcePools,
       feed: { amount: 0, capacity: 200 },
@@ -650,7 +662,7 @@ test('automation routes output above threshold to sell queue', () => {
   let state = createNewGame();
   state = {
     ...state,
-    progression: { ...state.progression, researchedTechs: ['automation', 'genetics'] },
+    progression: { ...state.progression, revealed: ['start', 'helpers'] },
     inventory: { wheat: 10 },
     sellQueue: [],
   };
@@ -721,7 +733,7 @@ test('missing contract deadline applies penalties', () => {
   let state = createNewGame();
   state = {
     ...state,
-    progression: { ...state.progression, researchedTechs: ['automation', 'genetics'] },
+    progression: { ...state.progression, revealed: ['start', 'helpers'] },
     money: 100,
     contracts: {
       ...state.contracts,
@@ -773,7 +785,7 @@ test('building chain processing queue progresses jobs over time', () => {
   let state = createNewGame();
   state = {
     ...state,
-    progression: { ...state.progression, researchedTechs: ['automation', 'genetics'] },
+    progression: { ...state.progression, revealed: ['start', 'helpers'] },
     plots: state.plots.map((plot) => ({ ...plot, automation: { ...(plot.automation ?? {}), enabled: false } })),
     buildingChain: {
       ...state.buildingChain,
@@ -797,7 +809,7 @@ test('building chain workshop conversion consumes inputs and yields expected out
   let state = createNewGame();
   state = {
     ...state,
-    progression: { ...state.progression, researchedTechs: ['automation', 'genetics'] },
+    progression: { ...state.progression, revealed: ['start', 'helpers'] },
     plots: state.plots.map((plot) => ({ ...plot, automation: { ...(plot.automation ?? {}), enabled: false } })),
     buildingChain: {
       ...state.buildingChain,
@@ -815,4 +827,47 @@ test('building chain workshop conversion consumes inputs and yields expected out
   assert.equal(state.buildingChain.storage.turnip ?? 0, 0);
   assert.equal(state.buildingChain.storage.carrot ?? 0, 0);
   assert.equal(state.buildingChain.storage.feed, 2);
+});
+
+test('worker and land ladders apply softcaps and intermediary permits', () => {
+  const state = createNewGame();
+
+  const earlyHire = getWorkerHireCost(state);
+  const earlyLand = getLandCost(state);
+
+  const lateState = {
+    ...state,
+    workers: Array.from({ length: 16 }, (_, index) => ({ id: `worker-${index + 1}`, assignmentId: null, fatigue: 0, upkeep: 0 })),
+    unlockedTiles: state.unlockedTiles.map(() => true),
+  };
+
+  const lateHire = getWorkerHireCost(lateState);
+  const lateLand = getLandCost(lateState);
+
+  assert.ok(lateHire.coins > earlyHire.coins);
+  assert.ok(lateLand.coins > earlyLand.coins);
+  assert.ok(lateHire.permits >= earlyHire.permits);
+  assert.ok(lateLand.permits >= earlyLand.permits);
+});
+
+test('can hire workers and upgrade worker tools when costs are met', () => {
+  let state = createNewGame();
+  state = {
+    ...state,
+    money: 5000,
+    resourcePools: {
+      ...state.resourcePools,
+      coins: { ...state.resourcePools.coins, amount: 5000 },
+      permits: { ...state.resourcePools.permits, amount: 10 },
+    },
+  };
+
+  const hired = hireWorker(state);
+  assert.equal(hired.workers.length, state.workers.length + 1);
+
+  const upgraded = upgradeWorkerTools(hired);
+  assert.equal((upgraded.workerConfig?.toolLevel ?? 0), (hired.workerConfig?.toolLevel ?? 0) + 1);
+
+  const nextUpgradeCost = getWorkerToolUpgradeCost(upgraded);
+  assert.ok(nextUpgradeCost.coins > 0);
 });

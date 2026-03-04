@@ -253,6 +253,45 @@ export const SHOP_BUILDINGS = {
   truck: { name: 'Truck', buyPrice: 360 },
 };
 
+export const WORKER_HIRE_LADDER = {
+  baseCoinCost: 40,
+  growth: 1.2,
+  softcapStart: 10,
+  softcapGrowth: 0.18,
+  permitEvery: 4,
+};
+
+export const WORKER_TOOL_UPGRADE_LADDER = [
+  {
+    tier: 1,
+    cost: { coins: 60, permits: 0 },
+    effect: { throughputBonus: 0.12 },
+  },
+  {
+    tier: 2,
+    cost: { coins: 110, permits: 1 },
+    effect: { throughputBonus: 0.22 },
+  },
+  {
+    tier: 3,
+    cost: { coins: 190, permits: 2 },
+    effect: { throughputBonus: 0.3 },
+  },
+  {
+    tier: 4,
+    cost: { coins: 320, permits: 3 },
+    effect: { throughputBonus: 0.36 },
+  },
+];
+
+export const LAND_UNLOCK_COST_CURVE = {
+  baseCoinCost: 25,
+  growth: 1.16,
+  softcapStartUnlockedPlots: 10,
+  softcapGrowth: 0.22,
+  permitEvery: 3,
+};
+
 export const BUILDING_CHAIN_MODULES = {
   storage: {
     silo: {

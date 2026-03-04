@@ -8,12 +8,20 @@ import { createInitialWorkers } from './game/workers';
 import { loadGame, saveGame } from './game/save';
 import { advanceTick } from './game/tick';
 import {
+  getLandCost,
   getUnlockablePlots,
+  getWorkerHireCost,
+  getWorkerToolUpgradeCost,
   harvestSpot,
+  hireWorker,
   onSpotClick,
+  pulseGrassRhythm,
+  pulseRockCritWindow,
+  pulseTreeTiming,
   sellItem,
   unlockPlot,
   selectSpot,
+  upgradeWorkerTools,
   waterSpot,
   isCropHydratedAtTick,
 } from './game/actions';
@@ -72,7 +80,25 @@ function withSelectedTool(gameState) {
     contracts: nextState.contracts ?? { reputation: 1, offers: [], active: [], completed: [], failed: [] },
     autoSellPolicy: nextState.autoSellPolicy ?? { enabled: false, defaultMinStock: 0, minStockByItem: {} },
     buildingChain: { ...createInitialBuildingChainState(), ...(nextState.buildingChain ?? {}) },
-    progression: nextState.progression ?? { researchPoints: 0, researchedTechs: [], milestones: { positiveBalanceDays: 0, completed: [] }, notifications: [] },
+    minigames: nextState.minigames ?? {
+      tree: { inputTiming: 0.5 },
+      grass: { streak: 0 },
+      rock: { charge: 0, critWindow: false },
+      lastOutcome: '',
+    },
+    progression: nextState.progression ?? {
+      researchPoints: 0,
+      researchedTechs: [],
+      revealed: ['start'],
+      stats: {
+        actionCounts: {},
+        lifetimeGathered: {},
+        lifetimeSold: {},
+        startingWorkerCount: (Array.isArray(nextState.workers) ? nextState.workers.length : 6),
+      },
+      milestones: { positiveBalanceDays: 0, completed: [] },
+      notifications: [],
+    },
   };
 }
 
@@ -234,6 +260,9 @@ export default function App() {
 
   const unlockablePlots = getUnlockablePlots(gameState);
   const canUnlockSelected = unlockablePlots.includes(selectedPlotIndex);
+  const nextLandCost = getLandCost(gameState);
+  const nextHireCost = getWorkerHireCost(gameState);
+  const nextToolUpgradeCost = getWorkerToolUpgradeCost(gameState);
 
   return (
     <div className="app-shell candybox-shell">
@@ -247,6 +276,9 @@ export default function App() {
         canGoPrevPlot={canGoPrevPlot}
         canGoNextPlot={canGoNextPlot}
         canUnlockSelected={canUnlockSelected}
+        nextLandCost={nextLandCost}
+        nextHireCost={nextHireCost}
+        nextToolUpgradeCost={nextToolUpgradeCost}
         plantableSeeds={plantableSeeds}
         sellableItems={sellableItems}
         activeSpotGroup={activeSpotGroup}
@@ -296,7 +328,12 @@ export default function App() {
         })}
         onClearDebris={() => setGameState((prevState) => {
           const { selectedPlotIndex: plotIndex, selectedSpotIndex: spotIndex } = getSelectedIndexes(prevState);
-          return onSpotClick(prevState, plotIndex, spotIndex);
+          const nextState = onSpotClick(prevState, plotIndex, spotIndex);
+          const text = nextState.minigames?.lastOutcome;
+          if (nextState !== prevState && text) {
+            appendLogEntries([toLogLine(prevState.tick, text)]);
+          }
+          return nextState;
         })}
         onHarvestSelected={() => setGameState((prevState) => {
           const { selectedPlotIndex: plotIndex, selectedSpotIndex: spotIndex } = getSelectedIndexes(prevState);
@@ -362,6 +399,44 @@ export default function App() {
           const nextState = unlockPlot(prevState, plotIndex);
           if (nextState !== prevState) {
             appendLogEntries([toLogLine(prevState.tick, `Unlocked Plot ${plotIndex + 1}.`)]);
+          }
+          return nextState;
+        })}
+        onHireWorker={() => setGameState((prevState) => {
+          const nextState = hireWorker(prevState);
+          if (nextState !== prevState) {
+            appendLogEntries([toLogLine(prevState.tick, nextState.uiMessage || 'A worker joins.')]);
+          }
+          return nextState;
+        })}
+        onUpgradeWorkers={() => setGameState((prevState) => {
+          const nextState = upgradeWorkerTools(prevState);
+          if (nextState !== prevState) {
+            appendLogEntries([toLogLine(prevState.tick, nextState.uiMessage || 'Tools improved.')]);
+          }
+          return nextState;
+        })}
+        onPulseTreeTiming={() => setGameState((prevState) => {
+          const nextState = pulseTreeTiming(prevState);
+          const text = nextState.minigames?.lastOutcome;
+          if (text) {
+            appendLogEntries([toLogLine(prevState.tick, text)]);
+          }
+          return nextState;
+        })}
+        onPulseGrassRhythm={() => setGameState((prevState) => {
+          const nextState = pulseGrassRhythm(prevState);
+          const text = nextState.minigames?.lastOutcome;
+          if (text) {
+            appendLogEntries([toLogLine(prevState.tick, text)]);
+          }
+          return nextState;
+        })}
+        onPulseRockCrit={() => setGameState((prevState) => {
+          const nextState = pulseRockCritWindow(prevState);
+          const text = nextState.minigames?.lastOutcome;
+          if (text) {
+            appendLogEntries([toLogLine(prevState.tick, text)]);
           }
           return nextState;
         })}
