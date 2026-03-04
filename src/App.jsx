@@ -16,6 +16,8 @@ import {
   selectSpot,
   waterSpot,
   isCropHydratedAtTick,
+  hireWorker,
+  upgradeWorkerTools,
 } from './game/actions';
 
 const MAX_EVENT_LOG_LINES = 100;
@@ -234,6 +236,8 @@ export default function App() {
 
   const unlockablePlots = getUnlockablePlots(gameState);
   const canUnlockSelected = unlockablePlots.includes(selectedPlotIndex);
+  const workerHireCost = 20 + ((gameState.workers?.length ?? 0) * 10);
+  const workerUpgradeCost = 40 + ((gameState.workerConfig?.toolLevel ?? 0) * 30);
 
   return (
     <div className="app-shell candybox-shell">
@@ -250,6 +254,8 @@ export default function App() {
         plantableSeeds={plantableSeeds}
         sellableItems={sellableItems}
         activeSpotGroup={activeSpotGroup}
+        workerHireCost={workerHireCost}
+        workerUpgradeCost={workerUpgradeCost}
         onSelectPlot={(plotIndex) => setGameState((prevState) => {
           const targetPlot = prevState.plots[plotIndex];
           const targetSpotIndex = getSpotIndexForGroup(targetPlot, activeSpotGroup, prevState);
@@ -354,6 +360,20 @@ export default function App() {
           const nextState = sellItem(prevState, itemId, 1);
           if (nextState !== prevState) {
             appendLogEntries([toLogLine(prevState.tick, `Sold 1 ${itemId}.`)]);
+          }
+          return nextState;
+        })}
+        onHireWorker={() => setGameState((prevState) => {
+          const nextState = hireWorker(prevState);
+          if (nextState !== prevState) {
+            appendLogEntries([toLogLine(prevState.tick, 'Hired a worker.')]);
+          }
+          return nextState;
+        })}
+        onUpgradeWorkers={() => setGameState((prevState) => {
+          const nextState = upgradeWorkerTools(prevState);
+          if (nextState !== prevState) {
+            appendLogEntries([toLogLine(prevState.tick, 'Upgraded worker tools.')]);
           }
           return nextState;
         })}

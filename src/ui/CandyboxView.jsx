@@ -71,10 +71,14 @@ export default function CandyboxView({
   onHarvestReadyOnActivePlot,
   onWaterDryPlantedOnActivePlot,
   onClearDebris,
+  onHireWorker,
+  onUpgradeWorkers,
   onPlant,
   onSellOne,
   onUnlockSelected,
   canUnlockSelected,
+  workerHireCost,
+  workerUpgradeCost,
   plantableSeeds,
   sellableItems,
 }) {
@@ -117,6 +121,8 @@ export default function CandyboxView({
     plantableSeeds,
     sellableItems,
     canUnlockSelected,
+    workerHireCost,
+    workerUpgradeCost,
     unlockSelectedCost: 25 * unlockedPlotCount,
     handlers: {
       onTill,
@@ -125,6 +131,8 @@ export default function CandyboxView({
       onHarvestReadyOnActivePlot,
       onWaterDryPlantedOnActivePlot,
       onClearDebris,
+      onHireWorker,
+      onUpgradeWorkers,
       onPlant,
       onSellOne,
       onUnlockSelected,
@@ -135,6 +143,8 @@ export default function CandyboxView({
     plantableSeeds,
     sellableItems,
     canUnlockSelected,
+    workerHireCost,
+    workerUpgradeCost,
     unlockedPlotCount,
     onTill,
     onWater,
@@ -142,6 +152,8 @@ export default function CandyboxView({
     onHarvestReadyOnActivePlot,
     onWaterDryPlantedOnActivePlot,
     onClearDebris,
+    onHireWorker,
+    onUpgradeWorkers,
     onPlant,
     onSellOne,
     onUnlockSelected,
@@ -184,6 +196,7 @@ export default function CandyboxView({
       </p>
       <p className="muted">Inventory: {formatInventorySummary(state.inventory)}</p>
       <p className="muted">Tiles: {formatTileTypeSummary(tileTypeSummary)}</p>
+      <p className="muted">Workers: {state.workers?.length ?? 0} · Tool level: {state.workerConfig?.toolLevel ?? 0} · Hire: ${workerHireCost} · Upgrade: ${workerUpgradeCost}</p>
 
       <div className="stack-row">
         <button type="button" disabled={!canGoPrevPlot} onClick={onPrevPlot}>Prev plot</button>

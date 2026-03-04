@@ -16,7 +16,7 @@ function getSpotVisual(spot, tick) {
     return { glyph: '@', className: 'is-raw' };
   }
 
-  if (spot?.debris === 'seeds') {
+  if (spot?.debris === 'grass') {
     return { glyph: '$', className: 'is-planted' };
   }
 
