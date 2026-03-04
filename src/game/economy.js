@@ -1,5 +1,6 @@
 export const ECONOMY_RESOURCES = {
   coins: { label: 'Coins', initialAmount: 10, defaultCapacity: 999_999 },
+  permits: { label: 'Permits', initialAmount: 0, defaultCapacity: 999 },
   water: { label: 'Water', initialAmount: 20, defaultCapacity: 200 },
   energy: { label: 'Energy', initialAmount: 20, defaultCapacity: 200 },
   labor: { label: 'Labor', initialAmount: 10, defaultCapacity: 100 },

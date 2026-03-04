@@ -1,13 +1,22 @@
-import { BUILDING_CHAIN_MODULES, CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS, ZONE_TYPES, getBuildingChainModuleProfile } from './constants.js';
-import { canResearchTech, isFeatureUnlocked, researchTech } from './progression.js';
+import {
+  BUILDING_CHAIN_MODULES,
+  CROPS,
+  LAND_UNLOCK_COST_CURVE,
+  SELLABLE_ITEMS,
+  SHOP_BUILDINGS,
+  SHOP_SEEDS,
+  WATERING_DURATION_TICKS,
+  WORKER_HIRE_LADDER,
+  WORKER_TOOL_UPGRADE_LADDER,
+  ZONE_TYPES,
+  getBuildingChainModuleProfile,
+} from './constants.js';
+import { canResearchTech, isFeatureUnlocked, recordActionVerb, recordLifetimeResources, researchTech } from './progression.js';
 import { acceptContract, settleContractSales } from './contracts.js';
 import { withAutomationDefaults } from './workers.js';
 import { createPlot } from './createNewGame.js';
 import { applyCostToPools, applyYieldToPools, canAffordFromPools } from './economy.js';
-
-const BASE_UNLOCK_PLOT_COST = 25;
-
-
+import { resolveGrassCut, resolveRockBreak, resolveTreeChop } from './minigames.js';
 
 function withBuildingChainModule(state, moduleType, moduleId) {
   const chain = state.buildingChain ?? {};
@@ -53,8 +62,70 @@ function getUnlockedPlotCount(state) {
   return state.unlockedTiles.filter(Boolean).length;
 }
 
-function getUnlockPlotCost(state) {
-  return BASE_UNLOCK_PLOT_COST * getUnlockedPlotCount(state);
+function applySoftcap(value, index, softcapStart, softcapGrowth) {
+  if (index < softcapStart) {
+    return value;
+  }
+
+  const over = index - softcapStart + 1;
+  return value * (1 + over * softcapGrowth);
+}
+
+export function getWorkerHireCost(state) {
+  const currentWorkers = state.workers?.length ?? 0;
+  const ladderStep = Math.max(0, currentWorkers - 6);
+  const base = WORKER_HIRE_LADDER.baseCoinCost * (WORKER_HIRE_LADDER.growth ** ladderStep);
+  const softened = applySoftcap(base, currentWorkers, WORKER_HIRE_LADDER.softcapStart, WORKER_HIRE_LADDER.softcapGrowth);
+  const permits = Math.floor(currentWorkers / WORKER_HIRE_LADDER.permitEvery);
+
+  return {
+    coins: Math.max(0, Math.round(softened)),
+    permits,
+  };
+}
+
+export function getWorkerToolUpgradeCost(state) {
+  const toolLevel = Math.max(0, Number(state.workerConfig?.toolLevel) || 0);
+  const fixedTier = WORKER_TOOL_UPGRADE_LADDER[toolLevel];
+  if (fixedTier) {
+    return { ...fixedTier.cost };
+  }
+
+  const lastTier = WORKER_TOOL_UPGRADE_LADDER[WORKER_TOOL_UPGRADE_LADDER.length - 1];
+  const overflow = toolLevel - WORKER_TOOL_UPGRADE_LADDER.length + 1;
+  const overflowScale = 1 + overflow * 0.5;
+  return {
+    coins: Math.round((lastTier?.cost?.coins ?? 320) * overflowScale),
+    permits: (lastTier?.cost?.permits ?? 3) + overflow,
+  };
+}
+
+export function getCurrentWorkerToolEffect(state) {
+  const toolLevel = Math.max(0, Number(state.workerConfig?.toolLevel) || 0);
+  const tier = WORKER_TOOL_UPGRADE_LADDER[Math.max(0, toolLevel - 1)];
+  if (tier) {
+    return tier.effect?.throughputBonus ?? 0;
+  }
+
+  const maxTierEffect = WORKER_TOOL_UPGRADE_LADDER[WORKER_TOOL_UPGRADE_LADDER.length - 1]?.effect?.throughputBonus ?? 0.36;
+  const overflow = Math.max(0, toolLevel - WORKER_TOOL_UPGRADE_LADDER.length);
+  return Number((maxTierEffect + overflow * 0.03).toFixed(2));
+}
+
+export function getLandCost(state) {
+  const unlockedPlots = getUnlockedPlotCount(state);
+  const base = LAND_UNLOCK_COST_CURVE.baseCoinCost * (LAND_UNLOCK_COST_CURVE.growth ** Math.max(0, unlockedPlots - 1));
+  const softened = applySoftcap(
+    base,
+    unlockedPlots,
+    LAND_UNLOCK_COST_CURVE.softcapStartUnlockedPlots,
+    LAND_UNLOCK_COST_CURVE.softcapGrowth
+  );
+
+  return {
+    coins: Math.max(0, Math.round(softened)),
+    permits: Math.floor(unlockedPlots / LAND_UNLOCK_COST_CURVE.permitEvery),
+  };
 }
 
 
@@ -141,6 +212,15 @@ function getWorkingResourcePools(state) {
       ...coinPool,
       amount: syncedCoinAmount,
     },
+  };
+}
+
+function getDefaultMinigameState(minigames = {}) {
+  return {
+    tree: { inputTiming: 0.5, ...(minigames.tree ?? {}) },
+    grass: { streak: 0, ...(minigames.grass ?? {}) },
+    rock: { charge: 0, critWindow: false, ...(minigames.rock ?? {}) },
+    lastOutcome: minigames.lastOutcome ?? '',
   };
 }
 
@@ -328,6 +408,11 @@ export function onSpotClick(state, plotIndex, spotIndex) {
   }
 
   if (spot.debris) {
+    const verbByDebris = {
+      wood: 'cut_tree',
+      seeds: 'cut_grass',
+      rock: 'break_rock',
+    };
     const debrisItemId = debrisToInventoryItem(spot.debris);
     const miniGameBonus = Math.random() < 0.2 ? 1 : 0;
     let nextInventory = state.inventory;
@@ -350,7 +435,7 @@ export function onSpotClick(state, plotIndex, spotIndex) {
       spots: nextSpots,
     };
 
-    return {
+    const baseNextState = {
       ...state,
       plots: nextPlots,
       inventory: nextInventory,
@@ -358,6 +443,72 @@ export function onSpotClick(state, plotIndex, spotIndex) {
       hotbarItems: debrisItemId ? addItemToHotbar(state.hotbarItems, debrisItemId) : state.hotbarItems,
       selected: { plotIndex, spotIndex },
     };
+    const minigames = getDefaultMinigameState(state.minigames);
+    let result = { success: true, extraYield: {}, text: '' };
+    let nextMinigames = minigames;
+
+    if (spot.debris === 'wood') {
+      result = resolveTreeChop(minigames.tree.inputTiming, state.workerConfig?.toolLevel ?? 0);
+      nextMinigames = {
+        ...minigames,
+        tree: { ...minigames.tree, inputTiming: result.nextInputTiming ?? minigames.tree.inputTiming },
+        lastOutcome: result.text,
+      };
+    }
+
+    if (spot.debris === 'seeds') {
+      result = resolveGrassCut(minigames.grass.streak);
+      nextMinigames = {
+        ...minigames,
+        grass: { ...minigames.grass, streak: result.nextStreak ?? 0 },
+        lastOutcome: result.text,
+      };
+    }
+
+    if (spot.debris === 'rock') {
+      result = resolveRockBreak(minigames.rock.charge, minigames.rock.critWindow);
+      nextMinigames = {
+        ...minigames,
+        rock: {
+          ...minigames.rock,
+          charge: result.nextCharge ?? 0,
+          critWindow: result.nextCritWindow ?? false,
+        },
+        lastOutcome: result.text,
+      };
+    }
+
+    let withOutcomeState = {
+      ...baseNextState,
+      minigames: nextMinigames,
+    };
+
+    if (Object.keys(result.extraYield ?? {}).length > 0) {
+      withOutcomeState = applyYield(withOutcomeState, result.extraYield, {
+        wood: SELLABLE_ITEMS.wood?.baselinePrice ?? 0,
+        rock: SELLABLE_ITEMS.rock?.baselinePrice ?? 0,
+      });
+
+      Object.entries(result.extraYield).forEach(([itemId, qty]) => {
+        if (qty > 0 && !withOutcomeState.resourcePools?.[itemId]) {
+          const adjusted = adjustInventory(withOutcomeState.inventory, itemId, qty);
+          if (adjusted) {
+            withOutcomeState = {
+              ...withOutcomeState,
+              inventory: adjusted,
+              hotbarItems: addItemToHotbar(withOutcomeState.hotbarItems, itemId),
+            };
+          }
+        }
+      });
+    }
+
+    withOutcomeState = {
+      ...withOutcomeState,
+      uiMessage: result.text || withOutcomeState.uiMessage,
+    };
+
+    return recordActionVerb(withOutcomeState, verbByDebris[spot.debris] ?? 'cut_grass');
   }
 
   const selectedHotbar = state.selectedTool;
@@ -635,12 +786,14 @@ export function sellItem(state, itemId, qty = 1) {
     nextState = applyYield(nextState, { coins: contractSettlement.bonusCoins });
   }
 
-  return {
+  const finalState = {
     ...nextState,
     inventory: nextInventory,
     hotbarItems: nextHotbarItems,
     selectedTool: shouldResetSelectedTool ? { kind: 'tool', id: 'hoe' } : state.selectedTool,
   };
+
+  return recordLifetimeResources(finalState, 'lifetimeSold', { [itemId]: qty });
 }
 
 export function buyItem(state, itemId, qty = 1) {
@@ -686,8 +839,8 @@ export function unlockPlot(state, tileToUnlock, zoneType = 'field') {
     return withUiMessage(state, 'Select an adjacent locked plot to buy.');
   }
 
-  const unlockCost = getUnlockPlotCost(state);
-  if (!canAffordCost(state, { coins: unlockCost })) {
+  const unlockCost = getLandCost(state);
+  if (!canAffordCost(state, unlockCost)) {
     return state;
   }
 
@@ -697,7 +850,7 @@ export function unlockPlot(state, tileToUnlock, zoneType = 'field') {
   const nextPlots = [...state.plots];
   nextPlots[tileToUnlock] = createPlot(ZONE_TYPES.has(zoneType) ? zoneType : 'field');
 
-  const paidState = applyCost(state, { coins: unlockCost });
+  const paidState = applyCost(state, unlockCost);
 
   return {
     ...paidState,
@@ -708,7 +861,7 @@ export function unlockPlot(state, tileToUnlock, zoneType = 'field') {
 }
 
 export function getUnlockPlotCostForState(state) {
-  return getUnlockPlotCost(state);
+  return getLandCost(state).coins;
 }
 
 export function getUnlockablePlotCount(state) {
@@ -882,12 +1035,14 @@ export function collectResourceFromTile(state, tileId) {
     stone: SELLABLE_ITEMS.rock?.baselinePrice ?? 0,
   });
 
-  return {
+  const collectedState = {
     ...yieldedState,
     tiles: nextTiles,
     inventory: nextInventory,
     hotbarItems: addItemToHotbar(state.hotbarItems, resource.itemId),
   };
+
+  return recordLifetimeResources(collectedState, 'lifetimeGathered', { [resource.itemId]: resource.amount });
 }
 
 export function breedChicken(state, coopId, parentAId, parentBId) {
@@ -977,6 +1132,21 @@ export function setAutoSellItemThreshold(state, itemId, minStock) {
   };
 }
 
+<<<<<<< codex/add-progression-layer-with-reveal-rules
+export function hireWorker(state) {
+  const cost = getWorkerHireCost(state);
+  if (!canAffordCost(state, cost)) {
+    return state;
+  }
+
+  const nextWorkerId = `worker-${(state.workers?.length ?? 0) + 1}`;
+  const paidState = applyCost(state, cost);
+
+  return {
+    ...paidState,
+    workers: [...(paidState.workers ?? []), { id: nextWorkerId, assignmentId: null, fatigue: 0, upkeep: 0 }],
+    uiMessage: `Hired ${nextWorkerId}.`,
+=======
 
 export function getWorkerHireCost(state) {
   const workerCount = state.workers?.length ?? 0;
@@ -1007,22 +1177,81 @@ export function hireWorker(state) {
     ...paidState,
     workers: nextWorkers,
     uiMessage: 'Hired 1 worker.',
+>>>>>>> main
   };
 }
 
 export function upgradeWorkerTools(state) {
   const cost = getWorkerToolUpgradeCost(state);
+<<<<<<< codex/add-progression-layer-with-reveal-rules
+  if (!canAffordCost(state, cost)) {
+    return state;
+  }
+
+  const paidState = applyCost(state, cost);
+  const nextLevel = (paidState.workerConfig?.toolLevel ?? 0) + 1;
+
+=======
   if (!canAffordCost(state, { coins: cost })) {
     return state;
   }
 
   const paidState = applyCost(state, { coins: cost });
+>>>>>>> main
   return {
     ...paidState,
     workerConfig: {
       ...(paidState.workerConfig ?? {}),
+<<<<<<< codex/add-progression-layer-with-reveal-rules
+      toolLevel: nextLevel,
+    },
+    uiMessage: `Worker tools reached tier ${nextLevel}.`,
+  };
+}
+
+export function pulseTreeTiming(state) {
+  const minigames = getDefaultMinigameState(state.minigames);
+  const nextTiming = ((state.tick % 10) + 1) / 10;
+  return {
+    ...state,
+    minigames: {
+      ...minigames,
+      tree: { ...minigames.tree, inputTiming: nextTiming },
+      lastOutcome: `Axe timing set: ${nextTiming.toFixed(1)}`,
+    },
+    uiMessage: `Axe timing set: ${nextTiming.toFixed(1)}`,
+  };
+}
+
+export function pulseGrassRhythm(state) {
+  const minigames = getDefaultMinigameState(state.minigames);
+  const nextStreak = Math.max(0, (minigames.grass.streak ?? 0) - 1);
+  return {
+    ...state,
+    minigames: {
+      ...minigames,
+      grass: { ...minigames.grass, streak: nextStreak },
+      lastOutcome: 'Rhythm reset.',
+    },
+    uiMessage: 'Rhythm reset.',
+  };
+}
+
+export function pulseRockCritWindow(state) {
+  const minigames = getDefaultMinigameState(state.minigames);
+  const nextWindow = !minigames.rock.critWindow;
+  return {
+    ...state,
+    minigames: {
+      ...minigames,
+      rock: { ...minigames.rock, critWindow: nextWindow },
+      lastOutcome: nextWindow ? 'Crack window open.' : 'Crack window closed.',
+    },
+    uiMessage: nextWindow ? 'Crack window open.' : 'Crack window closed.',
+=======
       toolLevel: (paidState.workerConfig?.toolLevel ?? 0) + 1,
     },
     uiMessage: 'Worker tools upgraded.',
+>>>>>>> main
   };
 }
