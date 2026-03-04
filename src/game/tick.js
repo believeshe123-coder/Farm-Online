@@ -1,4 +1,4 @@
-import { CROPS, SELLABLE_ITEMS, MARKET_DAILY_UPDATE_INTERVAL, MARKET_WEEKLY_UPDATE_INTERVAL, clampMarketPrice, getBaselineMarketPrices, getZoneCycleConfig } from './constants.js';
+import { CROPS, SELLABLE_ITEMS, MARKET_DAILY_UPDATE_INTERVAL, MARKET_WEEKLY_UPDATE_INTERVAL, clampMarketPrice, getBaselineMarketPrices, getBuildingChainModuleProfile, getZoneCycleConfig } from './constants.js';
 import { DAY_TICKS, canAffordFromPools } from './economy.js';
 import { applyCost, applyYield, canAffordCost, getCurrentSellPrice, isCropHydratedAtTick } from './actions.js';
 import {
@@ -68,6 +68,184 @@ function splitYieldMap(yieldMap = {}, state) {
 
 function getAssignmentId(kind, index) {
   return `${kind}:${index}`;
+}
+
+
+function addResourceMap(a = {}, b = {}) {
+  const next = { ...a };
+  Object.entries(b).forEach(([resourceId, amount]) => {
+    if (!amount) {
+      return;
+    }
+    next[resourceId] = (next[resourceId] ?? 0) + amount;
+  });
+  return next;
+}
+
+function deriveRawProduction(state, tick, workerAllocation) {
+  let rawProduction = {};
+
+  state.plots.forEach((plot, plotIndex) => {
+    if (!state.unlockedTiles?.[plotIndex] || !Array.isArray(plot?.spots)) {
+      return;
+    }
+
+    const workers = workerAllocation?.allocation?.[getAssignmentId('plot', plotIndex)] ?? 0;
+    const automation = withAutomationDefaults(plot.automation);
+    if (!automation.enabled || workers < 1) {
+      return;
+    }
+
+    const zoneConfig = getZoneCycleConfig(plot.zoneType, plot.level, plot.productionPolicy);
+    if (tick % zoneConfig.cycleTimeTicks !== 0) {
+      return;
+    }
+
+    const { inventoryYield } = splitYieldMap(zoneConfig.outputs, state);
+    rawProduction = addResourceMap(rawProduction, inventoryYield);
+  });
+
+  return rawProduction;
+}
+
+function processBuildingChain(state, rawProduction, nextTick) {
+  const chain = state.buildingChain ?? {};
+  const profile = getBuildingChainModuleProfile(chain.modules);
+  const capacityByResource = { ...(profile.storage.capacityByResource ?? {}), ...(chain.capacityByResource ?? {}) };
+  let storage = { ...(chain.storage ?? {}) };
+
+  const throughputStatus = [];
+
+  Object.entries(rawProduction).forEach(([resourceId, amount]) => {
+    const cap = capacityByResource[resourceId] ?? 0;
+    const current = storage[resourceId] ?? 0;
+    const admitted = Math.max(0, Math.min(amount, cap - current));
+    storage[resourceId] = current + admitted;
+    if (admitted < amount) {
+      throughputStatus.push('Storage full');
+    }
+  });
+
+  const processingKey = profile.processingId;
+  const recipes = profile.processing.recipes ?? {};
+  const queueCapacity = profile.processing.queueCapacity ?? 0;
+  const processingQueues = {
+    mill: [...(chain.processingQueues?.mill ?? [])],
+    workshop: [...(chain.processingQueues?.workshop ?? [])],
+  };
+  const activeQueue = processingQueues[processingKey] ?? [];
+
+  Object.entries(recipes).forEach(([recipeId, recipe]) => {
+    let canEnqueue = true;
+    while (canEnqueue) {
+      const hasInputs = Object.entries(recipe.inputs ?? {}).every(([resourceId, needed]) => (storage[resourceId] ?? 0) >= needed);
+      if (!hasInputs) {
+        throughputStatus.push('Input starvation');
+        break;
+      }
+
+      if (activeQueue.length >= queueCapacity) {
+        throughputStatus.push('No processor capacity');
+        break;
+      }
+
+      Object.entries(recipe.inputs ?? {}).forEach(([resourceId, needed]) => {
+        storage[resourceId] = Math.max(0, (storage[resourceId] ?? 0) - needed);
+      });
+
+      activeQueue.push({ recipeId, remainingTicks: recipe.durationTicks ?? 1, outputs: { ...(recipe.outputs ?? {}) } });
+
+      canEnqueue = false;
+    }
+  });
+
+  const remainingQueue = [];
+  const completedOutput = {};
+  activeQueue.forEach((job) => {
+    const remainingTicks = (job.remainingTicks ?? 1) - 1;
+    if (remainingTicks <= 0) {
+      Object.entries(job.outputs ?? {}).forEach(([resourceId, amount]) => {
+        completedOutput[resourceId] = (completedOutput[resourceId] ?? 0) + amount;
+      });
+      return;
+    }
+
+    remainingQueue.push({ ...job, remainingTicks });
+  });
+  processingQueues[processingKey] = remainingQueue;
+
+  Object.entries(completedOutput).forEach(([resourceId, amount]) => {
+    const cap = capacityByResource[resourceId] ?? 0;
+    const current = storage[resourceId] ?? 0;
+    const admitted = Math.max(0, Math.min(amount, cap - current));
+    storage[resourceId] = current + admitted;
+    if (admitted < amount) {
+      throughputStatus.push('Storage full');
+    }
+  });
+
+  const exportCaps = {
+    perTick: profile.export.perTick ?? 0,
+    perDay: profile.export.perDay ?? 0,
+  };
+
+  const exportQueue = { ...(chain.exportQueue ?? {}) };
+  Object.entries(storage).forEach(([resourceId, amount]) => {
+    if (amount > 0 && SELLABLE_ITEMS[resourceId]) {
+      exportQueue[resourceId] = (exportQueue[resourceId] ?? 0) + amount;
+      storage[resourceId] = 0;
+    }
+  });
+
+  const dayChanged = nextTick % DAY_TICKS === 0;
+  const exportedTodayBase = dayChanged ? 0 : (chain.exportedToday ?? 0);
+  let exportedToday = exportedTodayBase;
+  const perDayRemaining = Math.max(0, exportCaps.perDay - exportedTodayBase);
+  let perTickRemaining = Math.min(exportCaps.perTick, perDayRemaining);
+  let coinsFromExport = 0;
+
+  Object.keys(exportQueue).forEach((resourceId) => {
+    if (perTickRemaining <= 0) {
+      return;
+    }
+    const queued = exportQueue[resourceId] ?? 0;
+    if (queued <= 0) {
+      return;
+    }
+
+    const exported = Math.min(queued, perTickRemaining);
+    exportQueue[resourceId] = queued - exported;
+    perTickRemaining -= exported;
+    exportedToday += exported;
+    coinsFromExport += exported * (state.market?.prices?.[resourceId] ?? SELLABLE_ITEMS[resourceId]?.baselinePrice ?? 0);
+  });
+
+  const dedupedStatus = [...new Set(throughputStatus)];
+
+  return {
+    ...state,
+    buildingChain: {
+      ...chain,
+      modules: {
+        storage: profile.storageId,
+        processing: profile.processingId,
+        export: profile.exportId,
+      },
+      capacityByResource,
+      rawProduction,
+      storage,
+      processingQueues,
+      exportQueue,
+      exportCaps,
+      exportedToday,
+      exportDayStartedAtTick: dayChanged ? nextTick : (chain.exportDayStartedAtTick ?? 0),
+    },
+    economyStatus: {
+      ...(state.economyStatus ?? {}),
+      throughputStatus: dedupedStatus,
+    },
+    chainExportCoins: coinsFromExport,
+  };
 }
 
 
@@ -491,6 +669,18 @@ export function advanceTick(state) {
       Boolean(workingState.workerConfig?.fatigueEnabled)
     ),
   };
+
+  const rawProduction = deriveRawProduction(workingState, nextTick, workerAllocation);
+  workingState = processBuildingChain(workingState, rawProduction, nextTick);
+
+  if ((workingState.chainExportCoins ?? 0) > 0) {
+    workingState = applyYield(workingState, { coins: workingState.chainExportCoins });
+  }
+
+  if (Object.prototype.hasOwnProperty.call(workingState, 'chainExportCoins')) {
+    const { chainExportCoins, ...stateWithoutChainExportCoins } = workingState;
+    workingState = stateWithoutChainExportCoins;
+  }
 
   workingState = processAutoTrading(workingState, nextTick);
   workingState = processGlobalAutoSell(workingState, nextTick);

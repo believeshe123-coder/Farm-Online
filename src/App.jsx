@@ -7,6 +7,7 @@ import TileInspector from './ui/TileInspector';
 import CoopModal from './ui/CoopModal';
 import BackpackBar from './ui/BackpackBar';
 import { createNewGame } from './game/createNewGame';
+import { createInitialBuildingChainState } from './game/constants';
 import { createInitialWorkers } from './game/workers';
 import { loadGame, saveGame } from './game/save';
 import { advanceTick } from './game/tick';
@@ -54,6 +55,7 @@ function withSelectedTool(gameState) {
     market: nextState.market ?? { prices: {}, trends: {}, lastDailyUpdateTick: 0, lastWeeklyUpdateTick: 0 },
     contracts: nextState.contracts ?? { reputation: 1, offers: [], active: [], completed: [], failed: [] },
     autoSellPolicy: nextState.autoSellPolicy ?? { enabled: false, defaultMinStock: 0, minStockByItem: {} },
+    buildingChain: { ...createInitialBuildingChainState(), ...(nextState.buildingChain ?? {}) },
   };
 }
 
@@ -235,6 +237,7 @@ export default function App() {
         onNewGame={handleNewGame}
         onLoadGame={handleLoadGame}
         onBackToFront={handleBackToFront}
+        throughputStatus={gameState.economyStatus?.throughputStatus ?? []}
       />
       <main className="main-layout game-layout">
         <AsciiBoard

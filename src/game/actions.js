@@ -1,4 +1,4 @@
-import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS, ZONE_TYPES } from './constants.js';
+import { BUILDING_CHAIN_MODULES, CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS, ZONE_TYPES, getBuildingChainModuleProfile } from './constants.js';
 import { acceptContract, settleContractSales } from './contracts.js';
 import { withAutomationDefaults } from './workers.js';
 import { createPlot } from './createNewGame.js';
@@ -6,6 +6,36 @@ import { applyCostToPools, applyYieldToPools, canAffordFromPools } from './econo
 
 const BASE_UNLOCK_PLOT_COST = 25;
 
+
+
+function withBuildingChainModule(state, moduleType, moduleId) {
+  const chain = state.buildingChain ?? {};
+  const modules = {
+    storage: chain.modules?.storage ?? 'silo',
+    processing: chain.modules?.processing ?? 'mill',
+    export: chain.modules?.export ?? 'market_stall',
+  };
+
+  if (!BUILDING_CHAIN_MODULES[moduleType]?.[moduleId]) {
+    return state;
+  }
+
+  modules[moduleType] = moduleId;
+  const profile = getBuildingChainModuleProfile(modules);
+
+  return {
+    ...state,
+    buildingChain: {
+      ...chain,
+      modules,
+      capacityByResource: { ...(profile.storage.capacityByResource ?? {}) },
+      exportCaps: {
+        perTick: profile.export.perTick ?? 0,
+        perDay: profile.export.perDay ?? 0,
+      },
+    },
+  };
+}
 
 function isTileUnlocked(state, tileIndex) {
   return Boolean(state.unlockedTiles?.[tileIndex]);
@@ -671,11 +701,50 @@ export function placeBuilding(state, tileId, buildingId) {
     };
   }
 
+  if (buildingId === 'silo' || buildingId === 'warehouse') {
+    nextTiles[tileId] = {
+      type: buildingId,
+      kind: 'building',
+      buildingId,
+      automation: withAutomationDefaults(),
+    };
+  }
+
+  if (buildingId === 'mill' || buildingId === 'workshop') {
+    nextTiles[tileId] = {
+      type: buildingId,
+      kind: 'building',
+      buildingId,
+      automation: withAutomationDefaults({ enabled: true, targetOutputStock: 10 }),
+    };
+  }
+
+  if (buildingId === 'market_stall' || buildingId === 'truck') {
+    nextTiles[tileId] = {
+      type: buildingId,
+      kind: 'building',
+      buildingId,
+      automation: withAutomationDefaults({ enabled: true, targetOutputStock: 0 }),
+    };
+  }
+
   if (nextTiles[tileId].type === 'empty') {
     return state;
   }
 
-  const paidState = applyCost(state, { coins: building.buyPrice });
+  let paidState = applyCost(state, { coins: building.buyPrice });
+
+  if (buildingId === 'silo' || buildingId === 'warehouse') {
+    paidState = withBuildingChainModule(paidState, 'storage', buildingId);
+  }
+
+  if (buildingId === 'mill' || buildingId === 'workshop') {
+    paidState = withBuildingChainModule(paidState, 'processing', buildingId);
+  }
+
+  if (buildingId === 'market_stall' || buildingId === 'truck') {
+    paidState = withBuildingChainModule(paidState, 'export', buildingId);
+  }
 
   return {
     ...paidState,
@@ -685,6 +754,10 @@ export function placeBuilding(state, tileId, buildingId) {
       [tileId]: 0,
     },
   };
+}
+
+export function setBuildingChainModule(state, moduleType, moduleId) {
+  return withBuildingChainModule(state, moduleType, moduleId);
 }
 
 export function collectResourceFromTile(state, tileId) {

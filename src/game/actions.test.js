@@ -741,3 +741,72 @@ test('missing contract deadline applies penalties', () => {
   assert.equal(state.contracts.failed.length, 1);
   assert.equal(state.money, 90);
 });
+
+test('building chain storage admission respects capacity and flags overflow', () => {
+  const centerIndex = 12;
+  let state = createNewGame();
+
+  state = {
+    ...state,
+    buildingChain: {
+      ...state.buildingChain,
+      capacityByResource: { wheat: 1, seeds: 0 },
+      modules: { ...state.buildingChain.modules, storage: 'silo', processing: 'mill', export: 'market_stall' },
+      storage: {},
+    },
+  };
+
+  for (let i = 0; i < 4; i += 1) {
+    state = advanceTick(state);
+  }
+
+  assert.equal(state.buildingChain.exportedToday, 1);
+  assert.ok((state.economyStatus?.throughputStatus ?? []).includes('Storage full'));
+  assert.equal(state.plots[centerIndex].zoneType, 'field');
+});
+
+test('building chain processing queue progresses jobs over time', () => {
+  let state = createNewGame();
+  state = {
+    ...state,
+    plots: state.plots.map((plot) => ({ ...plot, automation: { ...(plot.automation ?? {}), enabled: false } })),
+    buildingChain: {
+      ...state.buildingChain,
+      modules: { ...state.buildingChain.modules, processing: 'mill' },
+      capacityByResource: { ...state.buildingChain.capacityByResource, wheat: 10, flour: 10 },
+      storage: { wheat: 2 },
+      processingQueues: { mill: [], workshop: [] },
+    },
+  };
+
+  state = advanceTick(state);
+  assert.equal(state.buildingChain.processingQueues.mill.length, 1);
+  assert.equal(state.buildingChain.processingQueues.mill[0].remainingTicks, 1);
+
+  state = advanceTick(state);
+  assert.equal(state.buildingChain.processingQueues.mill.length, 0);
+  assert.equal(state.buildingChain.storage.flour, 1);
+});
+
+test('building chain workshop conversion consumes inputs and yields expected outputs', () => {
+  let state = createNewGame();
+  state = {
+    ...state,
+    plots: state.plots.map((plot) => ({ ...plot, automation: { ...(plot.automation ?? {}), enabled: false } })),
+    buildingChain: {
+      ...state.buildingChain,
+      modules: { ...state.buildingChain.modules, processing: 'workshop' },
+      capacityByResource: { ...state.buildingChain.capacityByResource, turnip: 10, carrot: 10, feed: 10 },
+      storage: { turnip: 2, carrot: 1 },
+      processingQueues: { mill: [], workshop: [] },
+    },
+  };
+
+  state = advanceTick(state);
+  state = advanceTick(state);
+  state = advanceTick(state);
+
+  assert.equal(state.buildingChain.storage.turnip ?? 0, 0);
+  assert.equal(state.buildingChain.storage.carrot ?? 0, 0);
+  assert.equal(state.buildingChain.storage.feed, 2);
+});

@@ -245,7 +245,93 @@ export const SHOP_BUILDINGS = {
   barn: { name: 'Barn', buyPrice: 250 },
   forest: { name: 'Forest Camp', buyPrice: 120 },
   mine: { name: 'Mining Area', buyPrice: 140 },
+  silo: { name: 'Silo', buyPrice: 180 },
+  warehouse: { name: 'Warehouse', buyPrice: 300 },
+  mill: { name: 'Mill', buyPrice: 280 },
+  workshop: { name: 'Workshop', buyPrice: 340 },
+  market_stall: { name: 'Market Stall', buyPrice: 200 },
+  truck: { name: 'Truck', buyPrice: 360 },
 };
+
+export const BUILDING_CHAIN_MODULES = {
+  storage: {
+    silo: {
+      name: 'Silo',
+      capacityByResource: { wheat: 100, carrot: 60, turnip: 60, seeds: 80, flour: 40, feed: 40 },
+    },
+    warehouse: {
+      name: 'Warehouse',
+      capacityByResource: { wheat: 200, carrot: 140, turnip: 140, seeds: 180, flour: 120, feed: 120 },
+    },
+  },
+  processing: {
+    mill: {
+      name: 'Mill',
+      queueCapacity: 2,
+      recipes: {
+        flour: { inputs: { wheat: 2 }, outputs: { flour: 1 }, durationTicks: 2 },
+      },
+    },
+    workshop: {
+      name: 'Workshop',
+      queueCapacity: 3,
+      recipes: {
+        feed: { inputs: { turnip: 2, carrot: 1 }, outputs: { feed: 2 }, durationTicks: 3 },
+      },
+    },
+  },
+  export: {
+    market_stall: {
+      name: 'Market Stall',
+      perTick: 3,
+      perDay: 24,
+    },
+    truck: {
+      name: 'Truck',
+      perTick: 7,
+      perDay: 72,
+    },
+  },
+};
+
+export function getBuildingChainModuleProfile(moduleSelection = {}) {
+  const storageId = moduleSelection.storage ?? 'silo';
+  const processingId = moduleSelection.processing ?? 'mill';
+  const exportId = moduleSelection.export ?? 'market_stall';
+
+  return {
+    storageId,
+    processingId,
+    exportId,
+    storage: BUILDING_CHAIN_MODULES.storage[storageId] ?? BUILDING_CHAIN_MODULES.storage.silo,
+    processing: BUILDING_CHAIN_MODULES.processing[processingId] ?? BUILDING_CHAIN_MODULES.processing.mill,
+    export: BUILDING_CHAIN_MODULES.export[exportId] ?? BUILDING_CHAIN_MODULES.export.market_stall,
+  };
+}
+
+export function createInitialBuildingChainState() {
+  return {
+    modules: {
+      storage: 'silo',
+      processing: 'mill',
+      export: 'market_stall',
+    },
+    capacityByResource: {},
+    storage: {},
+    rawProduction: {},
+    processingQueues: {
+      mill: [],
+      workshop: [],
+    },
+    exportQueue: {},
+    exportCaps: {
+      perTick: 0,
+      perDay: 0,
+    },
+    exportedToday: 0,
+    exportDayStartedAtTick: 0,
+  };
+}
 
 const CROP_PRICE_BOUNDS = { minMultiplier: 0.7, maxMultiplier: 1.5 };
 const SEED_PRICE_BOUNDS = { minMultiplier: 0.75, maxMultiplier: 1.3 };
