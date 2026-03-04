@@ -1,7 +1,7 @@
 import { BUILDING_MAINTENANCE, BUILDING_OPERATING_COSTS, DAILY_UPKEEP_DEMANDS, createInitialResourcePools } from './economy.js';
 import { createInitialWorkers, withAutomationDefaults } from './workers.js';
 import { createInitialContractState } from './contracts.js';
-import { getBaselineMarketPrices } from './constants.js';
+import { createInitialBuildingChainState, getBaselineMarketPrices } from './constants.js';
 
 export function getRandomDebris() {
   const roll = Math.random();
@@ -95,5 +95,6 @@ export function createNewGame() {
     selected: null,
     selectedTool: { kind: 'tool', id: 'hoe' },
     uiMessage: '',
+    buildingChain: createInitialBuildingChainState(),
   };
 }

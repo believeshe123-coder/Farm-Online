@@ -8,6 +8,7 @@ export default function HudBar({
   onNewGame,
   onLoadGame,
   onBackToFront,
+  throughputStatus = [],
 }) {
   return (
     <header className="panel hud">
@@ -16,6 +17,9 @@ export default function HudBar({
         <p className="muted">Money: ${money} · Tick: {tick} · Plots: {unlockedPlotCount}/{totalPlots}</p>
       </div>
       <div>
+        {throughputStatus.length > 0 && (
+          <p className="muted">{throughputStatus.join(' · ')}</p>
+        )}
         <button onClick={onTogglePause}>{isPaused ? 'Resume' : 'Pause'}</button>
         <button onClick={onNewGame}>New Game</button>
         <button onClick={onLoadGame}>Load Game</button>
