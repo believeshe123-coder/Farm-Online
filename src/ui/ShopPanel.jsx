@@ -47,9 +47,20 @@ export default function ShopPanel({
 }) {
   const [activeTab, setActiveTab] = useState('shop');
   const [isOpen, setIsOpen] = useState(true);
+  const [showUnaffordable, setShowUnaffordable] = useState(false);
   const canBuild = selectedPlotIndex !== null;
   const [selectedPlotToUnlock, setSelectedPlotToUnlock] = useState('');
   const sellSections = useMemo(() => buildSellSections(inventory), [inventory]);
+  const visibleSeedEntries = useMemo(
+    () => Object.entries(SHOP_SEEDS).filter(([, item]) => showUnaffordable || money >= item.buyPrice),
+    [money, showUnaffordable]
+  );
+  const visibleBuildingEntries = useMemo(
+    () => Object.entries(SHOP_BUILDINGS).filter(([, building]) => showUnaffordable || money >= building.buyPrice),
+    [money, showUnaffordable]
+  );
+  const canAffordPlotUnlock = money >= unlockCost;
+  const showPlotUnlock = unlockablePlots.length > 0 && (showUnaffordable || canAffordPlotUnlock);
 
   useEffect(() => {
     if (unlockablePlots.length === 0) {
@@ -111,10 +122,20 @@ export default function ShopPanel({
 
         {activeTab === 'shop' && (
           <>
+            <label>
+              <input
+                type="checkbox"
+                checked={showUnaffordable}
+                onChange={(event) => setShowUnaffordable(event.target.checked)}
+              />{' '}
+              Show unaffordable (debug)
+            </label>
+
             <details open>
               <summary>Seeds</summary>
               <div className="stack-sm shop-section-body">
-                {Object.entries(SHOP_SEEDS).map(([itemId, item]) => (
+                {visibleSeedEntries.length === 0 && <p className="muted">No affordable seeds right now.</p>}
+                {visibleSeedEntries.map(([itemId, item]) => (
                   <button key={itemId} type="button" disabled={money < item.buyPrice} onClick={() => onBuySeed(itemId)}>
                     Buy {item.name} - ${item.buyPrice}
                   </button>
@@ -125,7 +146,8 @@ export default function ShopPanel({
             <details open>
               <summary>Buildings</summary>
               <div className="stack-sm shop-section-body">
-                {Object.entries(SHOP_BUILDINGS).map(([buildingId, building]) => (
+                {visibleBuildingEntries.length === 0 && <p className="muted">No affordable buildings right now.</p>}
+                {visibleBuildingEntries.map(([buildingId, building]) => (
                   <button
                     key={buildingId}
                     type="button"
@@ -141,7 +163,7 @@ export default function ShopPanel({
             <details open>
               <summary>Plots</summary>
               <div className="stack-sm shop-section-body">
-                {unlockablePlots.length > 0 && (
+                {showPlotUnlock && (
                   <label>
                     Plot to buy
                     <select
@@ -157,13 +179,17 @@ export default function ShopPanel({
                     </select>
                   </label>
                 )}
-                <button
-                  type="button"
-                  disabled={!canUnlockPlot || selectedPlotToUnlock === ''}
-                  onClick={() => onUnlockPlot(Number(selectedPlotToUnlock))}
-                >
-                  {unlockedPlotCount >= totalPlots ? 'Unlock Plot (All plots unlocked)' : `Unlock Plot - $${unlockCost}`}
-                </button>
+                {!showPlotUnlock && unlockablePlots.length > 0 && <p className="muted">No affordable plot unlocks right now.</p>}
+                {unlockablePlots.length === 0 && <p className="muted">No adjacent plots available to unlock.</p>}
+                {showPlotUnlock && (
+                  <button
+                    type="button"
+                    disabled={!canUnlockPlot || selectedPlotToUnlock === ''}
+                    onClick={() => onUnlockPlot(Number(selectedPlotToUnlock))}
+                  >
+                    {unlockedPlotCount >= totalPlots ? 'Unlock Plot (All plots unlocked)' : `Unlock Plot - $${unlockCost}`}
+                  </button>
+                )}
               </div>
             </details>
           </>

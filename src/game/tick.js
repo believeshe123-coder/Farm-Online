@@ -1,4 +1,5 @@
-import { CROPS } from './constants';
+import { CROPS } from './constants.js';
+import { isCropHydratedAtTick } from './actions.js';
 
 function addInventoryItem(inventory, itemId, amount = 1) {
   return {
@@ -12,6 +13,17 @@ export function advanceTick(state) {
   let nextInventory = state.inventory;
 
   const nextTiles = state.tiles.map((tile) => {
+    if ((tile.type === 'forest' || tile.type === 'mine') && tile.resource) {
+      const nextCharge = Math.min(tile.resource.maxCharge, tile.resource.charge + 1);
+      return {
+        ...tile,
+        resource: {
+          ...tile.resource,
+          charge: nextCharge,
+        },
+      };
+    }
+
     if (tile.type !== 'coop' || !Array.isArray(tile.animals)) {
       return tile;
     }
@@ -59,8 +71,15 @@ export function advanceTick(state) {
           return spot;
         }
 
+        const isHydrated = isCropHydratedAtTick(spot.crop, nextTick);
+
         return {
           ...spot,
+          soil: isHydrated ? 'watered' : 'hoed',
+          crop: {
+            ...spot.crop,
+            watered: isHydrated,
+          },
         };
       }),
     };

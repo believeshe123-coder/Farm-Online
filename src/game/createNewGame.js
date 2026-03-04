@@ -1,4 +1,4 @@
-function getRandomDebris() {
+export function getRandomDebris() {
   const roll = Math.random();
 
   if (roll < 0.25) {
@@ -6,7 +6,7 @@ function getRandomDebris() {
   }
 
   if (roll < 0.5) {
-    return 'grass';
+    return 'seeds';
   }
 
   if (roll < 0.75) {
@@ -16,7 +16,7 @@ function getRandomDebris() {
   return null;
 }
 
-function createSpot() {
+export function createSpot() {
   return {
     soil: 'raw',
     crop: null,
@@ -24,7 +24,7 @@ function createSpot() {
   };
 }
 
-function createPlot() {
+export function createPlot() {
   return {
     spots: Array.from({ length: 25 }, createSpot),
   };

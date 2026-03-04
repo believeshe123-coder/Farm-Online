@@ -20,6 +20,7 @@ import {
   sellItem,
   unlockPlot,
   buyItem,
+  collectResourceFromTile,
 } from './game/actions';
 
 function withSelectedTool(gameState) {
@@ -199,6 +200,7 @@ export default function App() {
           <TileInspector
             selected={gameState.selected}
             selectedSpot={selectedSpot}
+            selectedTile={selectedTile}
             tick={gameState.tick}
             isSelectedTileUnlocked={isSelectedTileUnlocked}
             unlockedPlotCount={unlockedPlotCount}
@@ -212,6 +214,15 @@ export default function App() {
               })
             }
             onOpenCoop={() => setIsCoopModalOpen(true)}
+            onCollectResource={() =>
+              setGameState((prevState) => {
+                if (!prevState.selected) {
+                  return prevState;
+                }
+
+                return collectResourceFromTile(prevState, prevState.selected.plotIndex);
+              })
+            }
           />
           <ShopPanel
             selectedPlotIndex={selectedPlotIndex}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { CROPS } from '../game/constants';
+import { isCropHydratedAtTick } from '../game/actions';
 
 function getEffectiveGrowTime(crop, cropState) {
   if (crop.wateredGrowMultiplier && cropState?.watered) {
@@ -15,7 +16,7 @@ function getSpotVisual(spot, tick) {
     return { glyph: '@', className: 'is-raw' };
   }
 
-  if (spot?.debris === 'grass') {
+  if (spot?.debris === 'seeds') {
     return { glyph: '$', className: 'is-planted' };
   }
 
@@ -40,20 +41,23 @@ function getSpotVisual(spot, tick) {
     return { glyph: '∩', className: 'is-planted' };
   }
 
-  const progress = (tick - spot.crop.plantedAtTick) / getEffectiveGrowTime(crop, spot.crop);
+  const isHydrated = isCropHydratedAtTick(spot.crop, tick);
+  const hydratedCropState = { ...spot.crop, watered: isHydrated };
+  const growthClassName = isHydrated ? 'is-watered' : 'is-hoed';
+  const progress = (tick - spot.crop.plantedAtTick) / getEffectiveGrowTime(crop, hydratedCropState);
   if (progress < 0.34) {
-    return { glyph: '∩', className: 'is-planted' };
+    return { glyph: '∩', className: growthClassName };
   }
 
   if (progress < 0.67) {
-    return { glyph: '^', className: 'is-planted' };
+    return { glyph: '^', className: growthClassName };
   }
 
   if (progress >= 1) {
     return { glyph: crop.symbol ?? crop.name[0].toUpperCase(), className: 'is-ready' };
   }
 
-  return { glyph: '^', className: 'is-planted' };
+  return { glyph: '^', className: growthClassName };
 }
 
 export default function AsciiBoard({ tiles, plots, gridSize, tick, unlockedTiles, selected, onSpotClick }) {
@@ -84,18 +88,28 @@ export default function AsciiBoard({ tiles, plots, gridSize, tick, unlockedTiles
           {tiles.map((tile, plotIndex) => {
             const isUnlocked = Boolean(unlockedTiles?.[plotIndex]);
             const isCoop = tile.type === 'coop';
+            const isForest = tile.type === 'forest';
+            const isMine = tile.type === 'mine';
 
             return (
               <div
                 key={plotIndex}
-                className={`ascii-grid-tile${isUnlocked ? '' : ' is-locked'}${isCoop ? ' is-coop' : ''}`}
+                className={`ascii-grid-tile${isUnlocked ? '' : ' is-locked'}${isCoop ? ' is-coop' : ''}${isForest ? ' is-forest' : ''}${isMine ? ' is-mine' : ''}`}
                 title={`Plot ${plotIndex + 1}`}
               >
                 <div className="plotInnerGrid">
                   {Array.from({ length: 25 }, (_, spotIndex) => {
                     const spot = plots?.[plotIndex]?.spots?.[spotIndex];
                     const isSelected = selected?.plotIndex === plotIndex && selected?.spotIndex === spotIndex;
-                    const visual = isUnlocked ? getSpotVisual(spot, tick) : { glyph: 'X', className: 'is-locked-spot' };
+                    const visual = !isUnlocked
+                      ? { glyph: 'X', className: 'is-locked-spot' }
+                      : isForest
+                        ? { glyph: '♣', className: 'is-forest' }
+                        : isMine
+                          ? { glyph: '◈', className: 'is-mine' }
+                          : isCoop
+                            ? { glyph: '◍', className: 'is-coop-spot' }
+                            : getSpotVisual(spot, tick);
 
                     return (
                       <button
