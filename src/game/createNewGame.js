@@ -1,4 +1,5 @@
 import { BUILDING_MAINTENANCE, BUILDING_OPERATING_COSTS, DAILY_UPKEEP_DEMANDS, createInitialResourcePools } from './economy.js';
+import { createInitialWorkers, withAutomationDefaults } from './workers.js';
 
 export function getRandomDebris() {
   const roll = Math.random();
@@ -31,6 +32,11 @@ export function createPlot(zoneType = 'field') {
     zoneType,
     level: 1,
     assignedWorkers: 1,
+    automation: withAutomationDefaults({
+      enabled: true,
+      minInputStock: 1,
+      targetOutputStock: 15,
+    }),
     productionPolicy: null,
     spots: Array.from({ length: 25 }, createSpot),
   };
@@ -49,8 +55,18 @@ export function createNewGame() {
     money: resourcePools.coins.amount,
     renderMode: 'glyph',
     gridSize,
-    tiles: Array.from({ length: totalTiles }, () => ({ type: 'empty' })),
+    tiles: Array.from({ length: totalTiles }, () => ({
+      type: 'empty',
+      automation: withAutomationDefaults(),
+    })),
     plots: Array.from({ length: totalTiles }, createPlot),
+    workers: createInitialWorkers(6),
+    workerConfig: {
+      toolLevel: 0,
+      fatigueEnabled: false,
+      upkeepEnabled: false,
+    },
+    sellQueue: [],
     unlockedTiles,
     resourcePools,
     dailyUpkeepDemands: structuredClone(DAILY_UPKEEP_DEMANDS),
