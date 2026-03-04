@@ -85,7 +85,7 @@ export const WATERING_DURATION_TICKS = 8;
 
 export const SHOP_SEEDS = Object.fromEntries(
   Object.entries(CROPS)
-    .filter(([, crop]) => crop.inShop !== false)
+    .filter(([, crop]) => crop.inShop !== false && crop.tier !== 'rare')
     .map(([cropId, crop]) => [
       `${cropId}_seed`,
       { name: `${crop.name} Seeds`, buyPrice: crop.seedBuyPrice },
@@ -95,6 +95,8 @@ export const SHOP_SEEDS = Object.fromEntries(
 export const SHOP_BUILDINGS = {
   coop: { name: 'Chicken Coop', buyPrice: 150 },
   barn: { name: 'Barn', buyPrice: 250 },
+  forest: { name: 'Forest Camp', buyPrice: 120 },
+  mine: { name: 'Mining Area', buyPrice: 140 },
 };
 
 export const SELLABLE_ITEMS = {

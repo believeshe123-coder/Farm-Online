@@ -26,8 +26,11 @@ function getStage(progress) {
 export default function TileInspector({
   selected,
   selectedSpot,
+  selectedTile,
   tick,
   onHarvest,
+  onOpenCoop,
+  onCollectResource,
   isSelectedTileUnlocked,
   unlockedPlotCount,
 }) {
@@ -62,8 +65,39 @@ export default function TileInspector({
     );
   }
 
+  if (selectedTile?.type === 'coop') {
+    return (
+      <section className="panel">
+        <h3>Tile Inspector</h3>
+        <p><strong>Plot:</strong> {selected.plotIndex + 1}</p>
+        <p><strong>Type:</strong> Chicken Coop</p>
+        <button type="button" onClick={onOpenCoop}>Open Coop</button>
+      </section>
+    );
+  }
+
+  if ((selectedTile?.type === 'forest' || selectedTile?.type === 'mine') && selectedTile.resource) {
+    const resourceReady = selectedTile.resource.charge >= selectedTile.resource.maxCharge;
+    const ticksRemaining = Math.max(0, selectedTile.resource.maxCharge - selectedTile.resource.charge);
+    const locationLabel = selectedTile.type === 'forest' ? 'Forest Camp' : 'Mining Area';
+
+    return (
+      <section className="panel">
+        <h3>Tile Inspector</h3>
+        <p><strong>Plot:</strong> {selected.plotIndex + 1}</p>
+        <p><strong>Type:</strong> {locationLabel}</p>
+        <p><strong>Collect:</strong> {selectedTile.resource.amount} {selectedTile.resource.itemId}</p>
+        <p><strong>Status:</strong> {resourceReady ? 'Ready' : `Ready in ${ticksRemaining} ticks`}</p>
+        <button type="button" disabled={!resourceReady} onClick={onCollectResource}>Collect</button>
+      </section>
+    );
+  }
+
   const crop = selectedSpot.crop ? CROPS[selectedSpot.crop.cropId] : null;
-  const effectiveGrowTime = crop?.wateredGrowMultiplier && selectedSpot.crop?.watered ? crop.growTime * crop.wateredGrowMultiplier : crop?.growTime;
+  const hydratedCrop = selectedSpot.crop
+    ? { ...selectedSpot.crop, watered: isCropHydratedAtTick(selectedSpot.crop, tick) }
+    : null;
+  const effectiveGrowTime = crop?.wateredGrowMultiplier && hydratedCrop?.watered ? crop.growTime * crop.wateredGrowMultiplier : crop?.growTime;
   const progress = crop ? (tick - selectedSpot.crop.plantedAtTick) / effectiveGrowTime : null;
   const stage = progress === null ? 'None' : getStage(progress);
   const canHarvest = Boolean(progress !== null && progress >= 1);

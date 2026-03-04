@@ -9,10 +9,12 @@ import {
   isCropHydratedAtTick,
   onSpotClick,
   placeBuilding,
+  collectResourceFromTile,
   sellItem,
   unlockPlot,
 } from './actions.js';
 import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS } from './constants.js';
+import { advanceTick } from './tick.js';
 
 function withMockedRandom(value, callback) {
   const originalRandom = Math.random;
@@ -138,6 +140,21 @@ test('selling item increases money and reduces inventory', () => {
   assert.equal(nextState.inventory.egg, 1);
 });
 
+test('selling an item down to zero removes it from inventory and hotbar', () => {
+  const state = {
+    ...createNewGame(),
+    inventory: { carrot: 1 },
+    hotbarItems: ['carrot'],
+    selectedTool: { kind: 'item', id: 'carrot' },
+  };
+
+  const nextState = sellItem(state, 'carrot', 1);
+
+  assert.equal(nextState.inventory.carrot, undefined);
+  assert.equal(nextState.hotbarItems.includes('carrot'), false);
+  assert.deepEqual(nextState.selectedTool, { kind: 'tool', id: 'hoe' });
+});
+
 test('placing barn consumes money and changes tile type', () => {
   const baseState = createNewGame();
   const state = {
@@ -148,6 +165,33 @@ test('placing barn consumes money and changes tile type', () => {
   const barnState = placeBuilding(state, 12, 'barn');
   assert.equal(barnState.tiles[12].type, 'barn');
   assert.equal(barnState.money, state.money - SHOP_BUILDINGS.barn.buyPrice);
+});
+
+test('placing forest and mine creates resource areas', () => {
+  const baseState = { ...createNewGame(), money: 1000 };
+
+  const forestState = placeBuilding(baseState, 12, 'forest');
+  const mineState = placeBuilding(baseState, 12, 'mine');
+
+  assert.equal(forestState.tiles[12].type, 'forest');
+  assert.equal(forestState.tiles[12].resource?.itemId, 'wood');
+  assert.equal(mineState.tiles[12].type, 'mine');
+  assert.equal(mineState.tiles[12].resource?.itemId, 'rock');
+});
+
+test('forest can be collected when fully charged', () => {
+  let state = { ...createNewGame(), money: 1000 };
+  state = placeBuilding(state, 12, 'forest');
+
+  for (let i = 0; i < state.tiles[12].resource.maxCharge; i += 1) {
+    state = advanceTick(state);
+  }
+
+  const collectedState = collectResourceFromTile(state, 12);
+
+  assert.equal(collectedState.inventory.wood, 3);
+  assert.equal(collectedState.tiles[12].resource.charge, 0);
+  assert.ok(collectedState.hotbarItems.includes('wood'));
 });
 
 test('watering a planted crop sets lastWateredTick', () => {
@@ -200,6 +244,31 @@ test('re-watering refreshes hydration window', () => {
   const cropState = state.plots[plotIndex].spots[spotIndex].crop;
   assert.equal(cropState?.lastWateredTick, WATERING_DURATION_TICKS + 2);
   assert.equal(isCropHydratedAtTick(cropState, WATERING_DURATION_TICKS + 2), true);
+});
+
+test('advanceTick dries soil after crop hydration expires', () => {
+  const plotIndex = 12;
+  const spotIndex = 1;
+  let state = {
+    ...createNewGame(),
+    inventory: { melon_seed: 1 },
+    hotbarItems: ['melon_seed'],
+  };
+
+  state = clearDebrisAndPrepareSoil(state, plotIndex, spotIndex);
+  state = { ...state, selectedTool: { kind: 'item', id: 'melon_seed' } };
+  state = onSpotClick(state, plotIndex, spotIndex);
+
+  state = {
+    ...state,
+    tick: WATERING_DURATION_TICKS,
+  };
+
+  const nextState = advanceTick(state);
+  const nextSpot = nextState.plots[plotIndex].spots[spotIndex];
+
+  assert.equal(nextSpot.soil, 'hoed');
+  assert.equal(nextSpot.crop?.watered, false);
 });
 
 test('hydrated lettuce harvest produces lettuce instead of wilted lettuce', () => {
@@ -285,11 +354,20 @@ test('shop seeds include all requested crops', () => {
     'wheat', 'carrot', 'turnip', 'radish', 'lettuce',
     'potato', 'onion', 'melon', 'beet', 'strawberry',
     'pumpkin', 'hot_pepper', 'grape', 'kale', 'zucchini',
-    'ancient_crop', 'dragonfruit', 'yarrow', 'elderberry',
   ];
 
   for (const cropId of expectedCropIds) {
     assert.ok(SHOP_SEEDS[`${cropId}_seed`], `Missing ${cropId}_seed in shop`);
+  }
+});
+
+test('rare crop seeds are not directly purchasable in shop', () => {
+  const rareCropIds = Object.entries(CROPS)
+    .filter(([, crop]) => crop.tier === 'rare')
+    .map(([cropId]) => cropId);
+
+  for (const cropId of rareCropIds) {
+    assert.equal(Object.hasOwn(SHOP_SEEDS, `${cropId}_seed`), false);
   }
 });
 
@@ -334,6 +412,19 @@ test('unlock plot requires choosing an adjacent locked tile', () => {
 
   state = unlockPlot(state, 7);
   assert.equal(state.unlockedTiles[7], true);
+});
+
+test('unlocking a new plot generates fresh randomized debris spots', () => {
+  const targetPlot = 7;
+  const baseState = { ...createNewGame(), money: 1000 };
+  const initialDebris = baseState.plots[targetPlot].spots.map((spot) => spot.debris);
+
+  const unlockedState = withMockedRandom(0.3, () => unlockPlot(baseState, targetPlot));
+  const unlockedDebris = unlockedState.plots[targetPlot].spots.map((spot) => spot.debris);
+
+  assert.equal(unlockedState.unlockedTiles[targetPlot], true);
+  assert.ok(unlockedDebris.every((debris) => debris === 'seeds'));
+  assert.notDeepEqual(unlockedDebris, initialDebris);
 });
 
 

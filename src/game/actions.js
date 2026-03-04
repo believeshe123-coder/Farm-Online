@@ -1,4 +1,5 @@
 import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS } from './constants.js';
+import { createPlot } from './createNewGame.js';
 
 const BASE_UNLOCK_PLOT_COST = 25;
 
@@ -100,7 +101,7 @@ function debrisToInventoryItem(debris) {
     return 'wood';
   }
 
-  if (debris === 'grass') {
+  if (debris === 'seeds') {
     return 'seeds';
   }
 
@@ -205,7 +206,11 @@ function isSpotReadyToHarvest(state, spot) {
     return false;
   }
 
-  const growthProgress = (state.tick - spot.crop.plantedAtTick) / getEffectiveGrowTime(crop, spot.crop);
+  const hydratedCropState = {
+    ...spot.crop,
+    watered: isCropHydratedAtTick(spot.crop, state.tick),
+  };
+  const growthProgress = (state.tick - spot.crop.plantedAtTick) / getEffectiveGrowTime(crop, hydratedCropState);
   return growthProgress >= 1;
 }
 
@@ -216,8 +221,16 @@ export function onSpotClick(state, plotIndex, spotIndex) {
 
   const plot = state.plots?.[plotIndex];
   const spot = plot?.spots?.[spotIndex];
+  const tile = state.tiles?.[plotIndex];
   if (!spot) {
     return state;
+  }
+
+  if (tile && tile.type !== 'empty') {
+    return {
+      ...state,
+      selected: { plotIndex, spotIndex },
+    };
   }
 
   if (isSpotReadyToHarvest(state, spot)) {
@@ -284,6 +297,7 @@ export function onSpotClick(state, plotIndex, spotIndex) {
         watered: true,
         lastWateredTick: state.tick,
       };
+      nextSpot.soil = 'watered';
     } else if (nextSpot.soil === 'hoed' && nextSpot.crop === null) {
       nextSpot.soil = 'watered';
     }
@@ -304,9 +318,6 @@ export function onSpotClick(state, plotIndex, spotIndex) {
           lastWateredTick: nextSpot.soil === 'watered' ? state.tick : null,
           regrowHarvestsRemaining: CROPS[cropId].regrowHarvests ?? 0,
         };
-        if (nextSpot.soil === 'watered') {
-          nextSpot.soil = 'hoed';
-        }
       }
     }
   }
@@ -432,10 +443,15 @@ export function sellItem(state, itemId, qty = 1) {
     return state;
   }
 
+  const nextHotbarItems = cleanupHotbarItems(state.hotbarItems, nextInventory);
+  const shouldResetSelectedTool = state.selectedTool?.kind === 'item' && !nextHotbarItems.includes(state.selectedTool.id);
+
   return {
     ...state,
     inventory: nextInventory,
     money: state.money + sellableItem.sellPrice * qty,
+    hotbarItems: nextHotbarItems,
+    selectedTool: shouldResetSelectedTool ? { kind: 'tool', id: 'hoe' } : state.selectedTool,
   };
 }
 
@@ -485,10 +501,14 @@ export function unlockPlot(state, tileToUnlock) {
   const nextUnlockedTiles = [...state.unlockedTiles];
   nextUnlockedTiles[tileToUnlock] = true;
 
+  const nextPlots = [...state.plots];
+  nextPlots[tileToUnlock] = createPlot();
+
   return {
     ...state,
     money: state.money - unlockCost,
     unlockedTiles: nextUnlockedTiles,
+    plots: nextPlots,
     uiMessage: '',
   };
 }
@@ -540,6 +560,34 @@ export function placeBuilding(state, tileId, buildingId) {
     };
   }
 
+  if (buildingId === 'forest') {
+    nextTiles[tileId] = {
+      type: 'forest',
+      kind: 'building',
+      buildingId: 'forest',
+      resource: {
+        itemId: 'wood',
+        amount: 3,
+        charge: 0,
+        maxCharge: 8,
+      },
+    };
+  }
+
+  if (buildingId === 'mine') {
+    nextTiles[tileId] = {
+      type: 'mine',
+      kind: 'building',
+      buildingId: 'mine',
+      resource: {
+        itemId: 'rock',
+        amount: 3,
+        charge: 0,
+        maxCharge: 10,
+      },
+    };
+  }
+
   if (nextTiles[tileId].type === 'empty') {
     return state;
   }
@@ -548,6 +596,39 @@ export function placeBuilding(state, tileId, buildingId) {
     ...state,
     money: state.money - building.buyPrice,
     tiles: nextTiles,
+  };
+}
+
+export function collectResourceFromTile(state, tileId) {
+  if (!isTileUnlocked(state, tileId)) {
+    return state;
+  }
+
+  const tile = state.tiles?.[tileId];
+  const resource = tile?.resource;
+  if (!tile || !resource || resource.charge < resource.maxCharge) {
+    return state;
+  }
+
+  const nextInventory = adjustInventory(state.inventory, resource.itemId, resource.amount);
+  if (!nextInventory) {
+    return state;
+  }
+
+  const nextTiles = [...state.tiles];
+  nextTiles[tileId] = {
+    ...tile,
+    resource: {
+      ...resource,
+      charge: 0,
+    },
+  };
+
+  return {
+    ...state,
+    tiles: nextTiles,
+    inventory: nextInventory,
+    hotbarItems: addItemToHotbar(state.hotbarItems, resource.itemId),
   };
 }
 

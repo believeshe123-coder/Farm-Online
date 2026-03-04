@@ -443,6 +443,9 @@ h3 {
 .spotCell.is-planted { background: #5b3b27; }
 .spotCell.is-ready { background: #5b3b27; color: #ffd27e; }
 .spotCell.is-locked-spot { background: #3e2a1e; color: #8f745c; }
+.spotCell.is-forest { background: #2f4a2f; color: #c8f0b1; }
+.spotCell.is-mine { background: #3f3f45; color: #d6d6df; }
+.spotCell.is-coop-spot { background: #5a4730; color: #f0d6a4; }
 
 .spotCell.is-selected {
   border-color: #f5ca93;

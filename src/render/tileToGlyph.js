@@ -7,6 +7,8 @@ export function tileToGlyph(tile) {
     ready: '🌾',
     coop: '🐔',
     barn: '🏚️',
+    forest: '🌲',
+    mine: '⛏️',
   };
 
   return glyphMap[tile.type] ?? '❔';
