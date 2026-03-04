@@ -1,5 +1,6 @@
 import { CROPS, getZoneNetProduction, ZONE_DEFINITIONS } from '../game/constants';
 import { getWateringDurationTicks, isCropHydratedAtTick } from '../game/actions';
+import AutomationPanel from './AutomationPanel';
 
 const BASE_UNLOCK_PLOT_COST = 25;
 
@@ -37,6 +38,8 @@ export default function TileInspector({
   onSetZoneType,
   onSetZonePolicy,
   onSetZoneWorkers,
+  onSetPlotAutomation,
+  onSetTileAutomation,
 }) {
   if (!selected || !selectedSpot) {
     return (
@@ -76,6 +79,7 @@ export default function TileInspector({
         <p><strong>Plot:</strong> {selected.plotIndex + 1}</p>
         <p><strong>Type:</strong> Chicken Coop</p>
         <button type="button" onClick={onOpenCoop}>Open Coop</button>
+        <AutomationPanel automation={selectedTile.automation} onSetAutomation={onSetTileAutomation} />
       </section>
     );
   }
@@ -93,6 +97,7 @@ export default function TileInspector({
         <p><strong>Collect:</strong> {selectedTile.resource.amount} {selectedTile.resource.itemId}</p>
         <p><strong>Status:</strong> {resourceReady ? 'Ready' : `Ready in ${ticksRemaining} ticks`}</p>
         <button type="button" disabled={!resourceReady} onClick={onCollectResource}>Collect</button>
+        <AutomationPanel automation={selectedTile.automation} onSetAutomation={onSetTileAutomation} />
       </section>
     );
   }
@@ -172,6 +177,9 @@ export default function TileInspector({
             </>
           )}
         </>
+      )}
+      {selectedPlot && (
+        <AutomationPanel automation={selectedPlot.automation} onSetAutomation={onSetPlotAutomation} />
       )}
       <p>
         <strong>Soil:</strong> {selectedSpot.soil}

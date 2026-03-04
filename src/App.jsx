@@ -7,6 +7,7 @@ import TileInspector from './ui/TileInspector';
 import CoopModal from './ui/CoopModal';
 import BackpackBar from './ui/BackpackBar';
 import { createNewGame } from './game/createNewGame';
+import { createInitialWorkers } from './game/workers';
 import { loadGame, saveGame } from './game/save';
 import { advanceTick } from './game/tick';
 import {
@@ -25,19 +26,28 @@ import {
 
 function withSelectedTool(gameState) {
   const hotbarItems = Array.isArray(gameState.hotbarItems) ? gameState.hotbarItems : [];
-
-  if (
+  const isToolValid = Boolean(
     gameState.selectedTool &&
     typeof gameState.selectedTool === 'object' &&
     ((gameState.selectedTool.kind === 'tool' && (gameState.selectedTool.id === 'hoe' || gameState.selectedTool.id === 'water')) ||
       (gameState.selectedTool.kind === 'item' && hotbarItems.includes(gameState.selectedTool.id)))
-  ) {
-    return gameState;
-  }
+  );
+
+  const nextState = {
+    ...gameState,
+    selectedTool: isToolValid ? gameState.selectedTool : { kind: 'tool', id: 'hoe' },
+  };
 
   return {
-    ...gameState,
-    selectedTool: { kind: 'tool', id: 'hoe' },
+    ...nextState,
+    workers: Array.isArray(nextState.workers) ? nextState.workers : createInitialWorkers(6),
+    workerConfig: {
+      toolLevel: 0,
+      fatigueEnabled: false,
+      upkeepEnabled: false,
+      ...(nextState.workerConfig ?? {}),
+    },
+    sellQueue: Array.isArray(nextState.sellQueue) ? nextState.sellQueue : [],
   };
 }
 
@@ -178,6 +188,23 @@ export default function App() {
   };
 
 
+  const updateSelectedTile = (updater) => {
+    setGameState((prevState) => {
+      const tileIndex = prevState.selected?.plotIndex;
+      if (!Number.isInteger(tileIndex) || !prevState.unlockedTiles?.[tileIndex]) {
+        return prevState;
+      }
+
+      const nextTiles = [...prevState.tiles];
+      nextTiles[tileIndex] = updater(nextTiles[tileIndex]);
+
+      return {
+        ...prevState,
+        tiles: nextTiles,
+      };
+    });
+  };
+
   if (view === 'front') {
     return (
       <div className="app-shell">
@@ -237,6 +264,18 @@ export default function App() {
             onSetZoneType={(zoneType) => updateSelectedPlot((plot) => ({ ...plot, zoneType, productionPolicy: null }))}
             onSetZonePolicy={(productionPolicy) => updateSelectedPlot((plot) => ({ ...plot, productionPolicy }))}
             onSetZoneWorkers={(assignedWorkers) => updateSelectedPlot((plot) => ({ ...plot, assignedWorkers: Math.max(0, assignedWorkers || 0) }))}
+            onSetPlotAutomation={(changes) =>
+              updateSelectedPlot((plot) => ({
+                ...plot,
+                automation: { ...(plot.automation ?? {}), ...changes },
+              }))
+            }
+            onSetTileAutomation={(changes) =>
+              updateSelectedTile((tile) => ({
+                ...tile,
+                automation: { ...(tile?.automation ?? {}), ...changes },
+              }))
+            }
             onCollectResource={() =>
               setGameState((prevState) => {
                 if (!prevState.selected) {

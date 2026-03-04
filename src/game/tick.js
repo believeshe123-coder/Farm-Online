@@ -1,6 +1,13 @@
-import { CROPS, getZoneCycleConfig } from './constants.js';
-import { DAY_TICKS } from './economy.js';
+import { CROPS, SELLABLE_ITEMS, getZoneCycleConfig } from './constants.js';
+import { DAY_TICKS, canAffordFromPools } from './economy.js';
 import { applyCost, applyYield, canAffordCost, isCropHydratedAtTick } from './actions.js';
+import {
+  allocateWorkersByPriority,
+  getAverageAssignmentFatigue,
+  getThroughputMultiplier,
+  updateWorkerFatigue,
+  withAutomationDefaults,
+} from './workers.js';
 
 function addInventoryItem(inventory, itemId, amount = 1) {
   return {
@@ -9,8 +16,8 @@ function addInventoryItem(inventory, itemId, amount = 1) {
   };
 }
 
-function hasInventoryCost(inventory, costMap = {}) {
-  return Object.entries(costMap).every(([itemId, amount]) => (inventory[itemId] ?? 0) >= amount);
+function hasInventoryCost(inventory, costMap = {}, minimumStock = 0) {
+  return Object.entries(costMap).every(([itemId, amount]) => (inventory[itemId] ?? 0) >= (amount + minimumStock));
 }
 
 function applyInventoryCost(inventory, costMap = {}) {
@@ -58,16 +65,96 @@ function splitYieldMap(yieldMap = {}, state) {
   }, { poolYield: {}, inventoryYield: {} });
 }
 
-function processZoneCycle(state, plot, tick, shortages, plotIndex) {
-  const zoneConfig = getZoneCycleConfig(plot.zoneType, plot.level, plot.productionPolicy);
-  const workers = Math.max(0, Number(plot.assignedWorkers) || 0);
+function getAssignmentId(kind, index) {
+  return `${kind}:${index}`;
+}
 
-  if (workers < zoneConfig.workerRequirement || tick % zoneConfig.cycleTimeTicks !== 0) {
+function processAutoTrading(state, nextTick) {
+  let nextState = state;
+  let nextInventory = state.inventory;
+  const sellQueue = [];
+
+  state.plots.forEach((plot) => {
+    const automation = withAutomationDefaults(plot.automation);
+    if (!automation.enabled) {
+      return;
+    }
+
+    const zoneConfig = getZoneCycleConfig(plot.zoneType, plot.level, plot.productionPolicy);
+    const { inventoryCost } = splitCostMap(zoneConfig.inputs, state);
+
+    if (automation.autoBuyInputs) {
+      Object.entries(inventoryCost).forEach(([itemId, amount]) => {
+        const targetMin = Math.max(automation.minInputStock, amount);
+        const current = nextInventory[itemId] ?? 0;
+        const deficit = Math.max(0, targetMin - current);
+        const seedSell = SELLABLE_ITEMS[itemId];
+        if (!seedSell || deficit <= 0) {
+          return;
+        }
+
+        const buyPrice = (seedSell.sellPrice ?? 0) * 2;
+        const affordableQty = Math.floor((nextState.money ?? 0) / buyPrice);
+        const qty = Math.min(deficit, affordableQty);
+        if (qty <= 0) {
+          return;
+        }
+
+        nextState = applyCost(nextState, { coins: qty * buyPrice });
+        nextInventory = addInventoryItem(nextInventory, itemId, qty);
+      });
+    }
+
+    if (automation.autoSellOutputs) {
+      Object.keys(zoneConfig.outputs).forEach((itemId) => {
+        const current = nextInventory[itemId] ?? 0;
+        const threshold = Math.max(0, automation.targetOutputStock);
+        const qtyToSell = Math.max(0, current - threshold);
+        if (qtyToSell <= 0 || !SELLABLE_ITEMS[itemId]) {
+          return;
+        }
+
+        nextInventory = applyInventoryCost(nextInventory, { [itemId]: qtyToSell });
+        nextState = applyYield(nextState, { coins: qtyToSell * SELLABLE_ITEMS[itemId].sellPrice });
+        sellQueue.push({ itemId, qty: qtyToSell, tick: nextTick });
+      });
+    }
+  });
+
+  return {
+    ...nextState,
+    inventory: nextInventory,
+    sellQueue,
+  };
+}
+
+function processZoneCycle(state, plot, tick, shortages, plotIndex, workerCount = 0) {
+  const zoneConfig = getZoneCycleConfig(plot.zoneType, plot.level, plot.productionPolicy);
+  const automation = withAutomationDefaults(plot.automation);
+
+  if (!automation.enabled || workerCount < 1 || tick % zoneConfig.cycleTimeTicks !== 0) {
+    return state;
+  }
+
+  const requiredWorkers = zoneConfig.workerRequirement;
+  const averageFatigue = getAverageAssignmentFatigue(state.workers, getAssignmentId('plot', plotIndex));
+  const throughputMultiplier = getThroughputMultiplier({
+    assignedWorkers: workerCount,
+    requiredWorkers,
+    toolLevel: state.workerConfig?.toolLevel ?? 0,
+    fatigueEnabled: Boolean(state.workerConfig?.fatigueEnabled),
+    upkeepEnabled: Boolean(state.workerConfig?.upkeepEnabled),
+    averageFatigue,
+  });
+
+  if (throughputMultiplier <= 0) {
+    shortages.push(`idle-workers:${zoneConfig.zoneType}:${plotIndex}`);
     return state;
   }
 
   const { poolCost, inventoryCost } = splitCostMap(zoneConfig.inputs, state);
-  if (!canAffordCost(state, poolCost) || !hasInventoryCost(state.inventory, inventoryCost)) {
+  const minInputStock = Math.max(0, Number(automation.minInputStock) || 0);
+  if (!canAffordCost(state, poolCost) || !hasInventoryCost(state.inventory, inventoryCost, minInputStock)) {
     shortages.push(`zone-input:${zoneConfig.zoneType}:${plotIndex}`);
     return state;
   }
@@ -80,11 +167,18 @@ function processZoneCycle(state, plot, tick, shortages, plotIndex) {
   let nextInventory = applyInventoryCost(nextState.inventory, inventoryCost);
   const { poolYield, inventoryYield } = splitYieldMap(zoneConfig.outputs, nextState);
 
-  if (Object.keys(poolYield).length > 0) {
-    nextState = applyYield(nextState, poolYield);
+  const scaledPoolYield = Object.fromEntries(
+    Object.entries(poolYield).map(([resourceId, amount]) => [resourceId, Math.max(0, Math.floor(amount * throughputMultiplier))])
+  );
+  const scaledInventoryYield = Object.fromEntries(
+    Object.entries(inventoryYield).map(([resourceId, amount]) => [resourceId, Math.max(0, Math.floor(amount * throughputMultiplier))])
+  );
+
+  if (Object.keys(scaledPoolYield).length > 0) {
+    nextState = applyYield(nextState, scaledPoolYield);
   }
 
-  Object.entries(inventoryYield).forEach(([resourceId, amount]) => {
+  Object.entries(scaledInventoryYield).forEach(([resourceId, amount]) => {
     nextInventory = addInventoryItem(nextInventory, resourceId, amount);
   });
 
@@ -100,24 +194,69 @@ function reduceCostMap(costMap = {}, multiplier = 1) {
   );
 }
 
+function allocateAutomationWorkers(state) {
+  const assignments = [];
+
+  state.plots.forEach((plot, index) => {
+    if (!state.unlockedTiles[index] || !Array.isArray(plot?.spots)) {
+      return;
+    }
+
+    const automation = withAutomationDefaults(plot.automation);
+    assignments.push({
+      id: getAssignmentId('plot', index),
+      enabled: automation.enabled,
+      priority: Number(automation.priority) || 0,
+      maxWorkers: Math.max(0, Number(plot.assignedWorkers) || 0),
+    });
+  });
+
+  state.tiles.forEach((tile, index) => {
+    if (!state.unlockedTiles[index] || !tile || tile.type === 'empty') {
+      return;
+    }
+
+    const automation = withAutomationDefaults(tile.automation);
+    assignments.push({
+      id: getAssignmentId('tile', index),
+      enabled: automation.enabled,
+      priority: Number(automation.priority) || 0,
+      maxWorkers: 1,
+    });
+  });
+
+  return allocateWorkersByPriority(state.workers ?? [], assignments);
+}
+
 export function advanceTick(state) {
   const nextTick = state.tick + 1;
   const buildingOperatingCosts = state.buildingOperatingCosts ?? {};
   const maintenanceConfig = state.buildingMaintenanceConfig ?? {};
   const nextMaintenanceTimers = { ...(state.buildingMaintenanceTimers ?? {}) };
+  const workerAllocation = allocateAutomationWorkers(state);
 
   let workingState = {
     ...state,
     tick: nextTick,
+    workers: workerAllocation.workers,
   };
 
   const shortages = [];
   let nextInventory = state.inventory;
+  const activeWorkerAssignments = new Set();
 
   const nextTiles = state.tiles.map((tile, tileIndex) => {
     if (!tile || tile.type === 'empty') {
       return tile;
     }
+
+    const tileWorkers = workerAllocation.allocation[getAssignmentId('tile', tileIndex)] ?? 0;
+    if (tileWorkers <= 0) {
+      shortages.push(`unstaffed:${tile.type}:${tileIndex}`);
+      return tile;
+    }
+
+    activeWorkerAssignments.add(getAssignmentId('tile', tileIndex));
 
     const buildingId = tile.buildingId ?? tile.type;
     const baseOperatingCost = buildingOperatingCosts[buildingId] ?? {};
@@ -160,7 +299,7 @@ export function advanceTick(state) {
     }
 
     if ((tile.type === 'forest' || tile.type === 'mine') && tile.resource) {
-      const chargeGain = Math.max(0, Math.floor(efficiency));
+      const chargeGain = Math.max(0, Math.floor(efficiency * tileWorkers));
       const nextCharge = Math.min(tile.resource.maxCharge, tile.resource.charge + chargeGain);
       return {
         ...tile,
@@ -175,7 +314,7 @@ export function advanceTick(state) {
       return tile;
     }
 
-    const eggProgressStep = efficiency >= 1 ? 1 : 0.5;
+    const eggProgressStep = efficiency >= 1 ? 1 + (tileWorkers - 1) * 0.25 : 0.5;
     const nextAnimals = tile.animals.map((animal) => {
       if (animal.species !== 'chicken') {
         return animal;
@@ -246,14 +385,29 @@ export function advanceTick(state) {
       return plot;
     }
 
-    workingState = processZoneCycle(workingState, plot, nextTick, shortages, plotIndex);
+    const plotWorkerCount = workerAllocation.allocation[getAssignmentId('plot', plotIndex)] ?? 0;
+    if (plotWorkerCount > 0) {
+      activeWorkerAssignments.add(getAssignmentId('plot', plotIndex));
+    }
+
+    workingState = processZoneCycle(workingState, plot, nextTick, shortages, plotIndex, plotWorkerCount);
     return plot;
   });
 
+  workingState = {
+    ...workingState,
+    workers: updateWorkerFatigue(
+      workingState.workers,
+      activeWorkerAssignments,
+      Boolean(workingState.workerConfig?.fatigueEnabled)
+    ),
+  };
+
+  workingState = processAutoTrading(workingState, nextTick);
 
   if (nextTick % DAY_TICKS === 0) {
     Object.entries(workingState.dailyUpkeepDemands ?? {}).forEach(([demandId, demandCost]) => {
-      if (canAffordCost(workingState, demandCost)) {
+      if (canAffordFromPools(workingState.resourcePools ?? {}, demandCost)) {
         workingState = applyCost(workingState, demandCost);
       } else {
         shortages.push(`upkeep:${demandId}`);

@@ -474,7 +474,7 @@ test('zone cycles produce deterministic outputs', () => {
   const nextState = advanceTick(state);
 
   assert.equal(nextState.tick, 4);
-  assert.equal(nextState.inventory.wheat, 2);
+  assert.equal(nextState.inventory.wheat, 3);
   assert.equal(nextState.resourcePools.seeds.amount, 3);
   assert.equal(nextState.resourcePools.water.amount, 4);
 });
@@ -587,4 +587,82 @@ test('shortages reduce output and storage overflow is sold at loss', () => {
   assert.equal(afterOverflow.resourcePools.water.amount, 100);
   assert.equal(afterOverflow.resourcePools.coins.amount > state.resourcePools.coins.amount, true);
   assert.equal(afterOverflow.economyStatus.lastOverflow.water > 0, true);
+});
+
+test('automation allocates constrained workers to highest-priority plot chain', () => {
+  const base = createNewGame();
+  const highIndex = 12;
+  const lowIndex = 13;
+
+  let state = {
+    ...base,
+    unlockedTiles: base.unlockedTiles.map((value, index) => value || index === lowIndex),
+    workers: [{ id: 'w1', assignmentId: null, fatigue: 0, upkeep: 0 }],
+    inventory: {},
+    resourcePools: {
+      ...base.resourcePools,
+      seeds: { ...base.resourcePools.seeds, amount: 3 },
+      water: { ...base.resourcePools.water, amount: 4 },
+    },
+  };
+
+  state.plots[highIndex] = {
+    ...state.plots[highIndex],
+    assignedWorkers: 1,
+    automation: {
+      enabled: true,
+      priority: 90,
+      minInputStock: 0,
+      targetOutputStock: 20,
+      autoBuyInputs: false,
+      autoSellOutputs: false,
+    },
+  };
+
+  state.plots[lowIndex] = {
+    ...state.plots[lowIndex],
+    assignedWorkers: 1,
+    automation: {
+      enabled: true,
+      priority: 10,
+      minInputStock: 0,
+      targetOutputStock: 20,
+      autoBuyInputs: false,
+      autoSellOutputs: false,
+    },
+  };
+
+  for (let i = 0; i < 4; i += 1) {
+    state = advanceTick(state);
+  }
+
+  assert.equal(state.inventory.wheat ?? 0, 2);
+  assert.ok((state.workers[0].assignmentId ?? '').startsWith('plot:12'));
+});
+
+test('automation routes output above threshold to sell queue', () => {
+  let state = createNewGame();
+  state = {
+    ...state,
+    inventory: { wheat: 10 },
+    sellQueue: [],
+  };
+
+  state.plots[12] = {
+    ...state.plots[12],
+    automation: {
+      enabled: true,
+      priority: 50,
+      minInputStock: 0,
+      targetOutputStock: 3,
+      autoBuyInputs: false,
+      autoSellOutputs: true,
+    },
+  };
+
+  state = advanceTick(state);
+
+  assert.equal(state.inventory.wheat, 3);
+  assert.ok((state.sellQueue ?? []).some((entry) => entry.itemId === 'wheat' && entry.qty === 7));
+  assert.ok(state.money > createNewGame().money);
 });

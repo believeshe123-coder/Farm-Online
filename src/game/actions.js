@@ -1,4 +1,5 @@
 import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS, ZONE_TYPES } from './constants.js';
+import { withAutomationDefaults } from './workers.js';
 import { createPlot } from './createNewGame.js';
 import { applyCostToPools, applyYieldToPools, canAffordFromPools } from './economy.js';
 
@@ -605,6 +606,7 @@ export function placeBuilding(state, tileId, buildingId) {
       kind: 'building',
       buildingId: 'coop',
       animals: createStarterChickens(),
+      automation: withAutomationDefaults({ enabled: true, targetOutputStock: 12 }),
     };
   }
 
@@ -614,6 +616,7 @@ export function placeBuilding(state, tileId, buildingId) {
       kind: 'building',
       buildingId: 'barn',
       storage: {},
+      automation: withAutomationDefaults(),
     };
   }
 
@@ -628,6 +631,7 @@ export function placeBuilding(state, tileId, buildingId) {
         charge: 0,
         maxCharge: 8,
       },
+      automation: withAutomationDefaults({ enabled: true, targetOutputStock: 20 }),
     };
   }
 
@@ -642,6 +646,7 @@ export function placeBuilding(state, tileId, buildingId) {
         charge: 0,
         maxCharge: 10,
       },
+      automation: withAutomationDefaults({ enabled: true, targetOutputStock: 20 }),
     };
   }
 
