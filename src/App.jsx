@@ -22,6 +22,9 @@ import {
   unlockPlot,
   buyItem,
   collectResourceFromTile,
+  acceptContractOffer,
+  setAutoSellPolicy,
+  setAutoSellItemThreshold,
 } from './game/actions';
 
 function withSelectedTool(gameState) {
@@ -48,6 +51,9 @@ function withSelectedTool(gameState) {
       ...(nextState.workerConfig ?? {}),
     },
     sellQueue: Array.isArray(nextState.sellQueue) ? nextState.sellQueue : [],
+    market: nextState.market ?? { prices: {}, trends: {}, lastDailyUpdateTick: 0, lastWeeklyUpdateTick: 0 },
+    contracts: nextState.contracts ?? { reputation: 1, offers: [], active: [], completed: [], failed: [] },
+    autoSellPolicy: nextState.autoSellPolicy ?? { enabled: false, defaultMinStock: 0, minStockByItem: {} },
   };
 }
 
@@ -311,6 +317,13 @@ export default function App() {
             onSetPlotZone={(zoneType) => updateSelectedPlot((plot) => ({ ...plot, zoneType, productionPolicy: null }))}
             onSetPlotPolicy={(productionPolicy) => updateSelectedPlot((plot) => ({ ...plot, productionPolicy }))}
             onSetPlotWorkers={(assignedWorkers) => updateSelectedPlot((plot) => ({ ...plot, assignedWorkers: Math.max(0, assignedWorkers || 0) }))}
+            marketPrices={gameState.market?.prices ?? {}}
+            marketTrends={gameState.market?.trends ?? {}}
+            contracts={gameState.contracts}
+            autoSellPolicy={gameState.autoSellPolicy}
+            onAcceptContract={(contractId) => setGameState((prevState) => acceptContractOffer(prevState, contractId))}
+            onSetAutoSellPolicy={(changes) => setGameState((prevState) => setAutoSellPolicy(prevState, changes))}
+            onSetAutoSellItemThreshold={(itemId, minStock) => setGameState((prevState) => setAutoSellItemThreshold(prevState, itemId, minStock))}
           />
         </aside>
       </main>

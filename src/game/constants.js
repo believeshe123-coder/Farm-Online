@@ -247,20 +247,69 @@ export const SHOP_BUILDINGS = {
   mine: { name: 'Mining Area', buyPrice: 140 },
 };
 
+const CROP_PRICE_BOUNDS = { minMultiplier: 0.7, maxMultiplier: 1.5 };
+const SEED_PRICE_BOUNDS = { minMultiplier: 0.75, maxMultiplier: 1.3 };
+
 export const SELLABLE_ITEMS = {
-  ...Object.fromEntries(Object.entries(CROPS).map(([cropId, crop]) => [cropId, { name: crop.name, sellPrice: crop.sellPrice }])),
+  ...Object.fromEntries(Object.entries(CROPS).map(([cropId, crop]) => [cropId, {
+    name: crop.name,
+    baselinePrice: crop.sellPrice,
+    dailyVolatility: 0.08,
+    weeklyVolatility: 0.14,
+    ...CROP_PRICE_BOUNDS,
+  }])),
   ...Object.fromEntries(
     Object.entries(CROPS).map(([cropId, crop]) => [
       `${cropId}_seed`,
-      { name: `${crop.name} Seeds`, sellPrice: crop.seedBuyPrice },
+      {
+        name: `${crop.name} Seeds`,
+        baselinePrice: crop.seedBuyPrice,
+        dailyVolatility: 0.04,
+        weeklyVolatility: 0.08,
+        ...SEED_PRICE_BOUNDS,
+      },
     ])
   ),
-  lettuce_wilted: { name: 'Wilted Lettuce', sellPrice: CROPS.lettuce.sellPrice / 2 },
-  egg: { name: 'Egg', sellPrice: 4 },
-  wood: { name: 'Wood', sellPrice: 2 },
-  seeds: { name: 'Seeds', sellPrice: 1 },
-  rock: { name: 'Rock', sellPrice: 2 },
+  lettuce_wilted: {
+    name: 'Wilted Lettuce',
+    baselinePrice: CROPS.lettuce.sellPrice / 2,
+    dailyVolatility: 0.06,
+    weeklyVolatility: 0.12,
+    minMultiplier: 0.7,
+    maxMultiplier: 1.2,
+  },
+  egg: { name: 'Egg', baselinePrice: 4, dailyVolatility: 0.05, weeklyVolatility: 0.1, minMultiplier: 0.75, maxMultiplier: 1.35 },
+  wood: { name: 'Wood', baselinePrice: 2, dailyVolatility: 0.04, weeklyVolatility: 0.09, minMultiplier: 0.7, maxMultiplier: 1.3 },
+  seeds: { name: 'Seeds', baselinePrice: 1, dailyVolatility: 0.03, weeklyVolatility: 0.07, minMultiplier: 0.8, maxMultiplier: 1.25 },
+  rock: { name: 'Rock', baselinePrice: 2, dailyVolatility: 0.04, weeklyVolatility: 0.09, minMultiplier: 0.75, maxMultiplier: 1.35 },
 };
+
+export const MARKET_DAILY_UPDATE_INTERVAL = 24;
+export const MARKET_WEEKLY_UPDATE_INTERVAL = MARKET_DAILY_UPDATE_INTERVAL * 7;
+
+export function getSellPriceBounds(itemId) {
+  const config = SELLABLE_ITEMS[itemId];
+  if (!config) {
+    return { minPrice: 0, maxPrice: 0 };
+  }
+
+  const baselinePrice = config.baselinePrice ?? 0;
+  return {
+    minPrice: Math.max(1, Math.floor(baselinePrice * (config.minMultiplier ?? 1))),
+    maxPrice: Math.max(1, Math.ceil(baselinePrice * (config.maxMultiplier ?? 1))),
+  };
+}
+
+export function getBaselineMarketPrices() {
+  return Object.fromEntries(
+    Object.entries(SELLABLE_ITEMS).map(([itemId, item]) => [itemId, item.baselinePrice])
+  );
+}
+
+export function clampMarketPrice(itemId, rawPrice) {
+  const { minPrice, maxPrice } = getSellPriceBounds(itemId);
+  return Math.min(maxPrice, Math.max(minPrice, Math.round(rawPrice)));
+}
 
 export const ANIMALS = {
   chicken: { name: 'Chicken', buyCost: 20, produceTicks: 3 },

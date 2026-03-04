@@ -1,4 +1,5 @@
 import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS, ZONE_TYPES } from './constants.js';
+import { acceptContract, settleContractSales } from './contracts.js';
 import { withAutomationDefaults } from './workers.js';
 import { createPlot } from './createNewGame.js';
 import { applyCostToPools, applyYieldToPools, canAffordFromPools } from './economy.js';
@@ -482,6 +483,16 @@ export function harvestCrop(state) {
   return state;
 }
 
+
+export function getCurrentSellPrice(state, itemId) {
+  const marketPrice = state.market?.prices?.[itemId];
+  if (typeof marketPrice === 'number') {
+    return marketPrice;
+  }
+
+  return SELLABLE_ITEMS[itemId]?.baselinePrice ?? 0;
+}
+
 export function sellItem(state, itemId, qty = 1) {
   if (qty <= 0) {
     return state;
@@ -500,11 +511,21 @@ export function sellItem(state, itemId, qty = 1) {
   const nextHotbarItems = cleanupHotbarItems(state.hotbarItems, nextInventory);
   const shouldResetSelectedTool = state.selectedTool?.kind === 'item' && !nextHotbarItems.includes(state.selectedTool.id);
 
-  const coinGain = sellableItem.sellPrice * qty;
-  const yieldedState = applyYield(state, { coins: coinGain });
+  const coinGain = getCurrentSellPrice(state, itemId) * qty;
+  let nextState = applyYield(state, { coins: coinGain });
+
+  const contractSettlement = settleContractSales(nextState.contracts, { [itemId]: qty }, nextState.tick);
+  nextState = {
+    ...nextState,
+    contracts: contractSettlement.contractsState,
+  };
+
+  if (contractSettlement.bonusCoins > 0) {
+    nextState = applyYield(nextState, { coins: contractSettlement.bonusCoins });
+  }
 
   return {
-    ...yieldedState,
+    ...nextState,
     inventory: nextInventory,
     hotbarItems: nextHotbarItems,
     selectedTool: shouldResetSelectedTool ? { kind: 'tool', id: 'hoe' } : state.selectedTool,
@@ -695,8 +716,8 @@ export function collectResourceFromTile(state, tileId) {
     ? { stone: resource.amount }
     : { [resource.itemId]: resource.amount };
   const yieldedState = applyYield(state, resourceYield, {
-    wood: SELLABLE_ITEMS.wood?.sellPrice ?? 0,
-    stone: SELLABLE_ITEMS.rock?.sellPrice ?? 0,
+    wood: SELLABLE_ITEMS.wood?.baselinePrice ?? 0,
+    stone: SELLABLE_ITEMS.rock?.baselinePrice ?? 0,
   });
 
   return {
@@ -744,5 +765,40 @@ export function breedChicken(state, coopId, parentAId, parentBId) {
   return {
     ...state,
     tiles: nextTiles,
+  };
+}
+
+
+export function acceptContractOffer(state, contractId) {
+  return {
+    ...state,
+    contracts: acceptContract(state.contracts, contractId, state.tick),
+  };
+}
+
+export function setAutoSellPolicy(state, changes = {}) {
+  return {
+    ...state,
+    autoSellPolicy: {
+      ...(state.autoSellPolicy ?? {}),
+      ...changes,
+    },
+  };
+}
+
+export function setAutoSellItemThreshold(state, itemId, minStock) {
+  if (!itemId) {
+    return state;
+  }
+
+  return {
+    ...state,
+    autoSellPolicy: {
+      ...(state.autoSellPolicy ?? {}),
+      minStockByItem: {
+        ...((state.autoSellPolicy ?? {}).minStockByItem ?? {}),
+        [itemId]: Math.max(0, Number(minStock) || 0),
+      },
+    },
   };
 }
