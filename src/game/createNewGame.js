@@ -12,7 +12,7 @@ export function getRandomDebris() {
   }
 
   if (roll < 0.5) {
-    return 'seeds';
+    return 'grass';
   }
 
   if (roll < 0.75) {

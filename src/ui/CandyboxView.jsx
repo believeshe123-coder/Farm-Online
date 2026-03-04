@@ -96,6 +96,8 @@ export default function CandyboxView({
   onHarvestReadyOnActivePlot,
   onWaterDryPlantedOnActivePlot,
   onClearDebris,
+  onHireWorker,
+  onUpgradeWorkers,
   onPlant,
   onSellOne,
   onUnlockSelected,
@@ -105,9 +107,14 @@ export default function CandyboxView({
   onPulseGrassRhythm,
   onPulseRockCrit,
   canUnlockSelected,
+<<<<<<< codex/add-progression-layer-with-reveal-rules
   nextLandCost,
   nextHireCost,
   nextToolUpgradeCost,
+=======
+  workerHireCost,
+  workerUpgradeCost,
+>>>>>>> main
   plantableSeeds,
   sellableItems,
 }) {
@@ -154,9 +161,15 @@ export default function CandyboxView({
     plantableSeeds,
     sellableItems,
     canUnlockSelected,
+<<<<<<< codex/add-progression-layer-with-reveal-rules
     unlockSelectedCost: nextLandCost,
     nextHireCost,
     nextToolUpgradeCost,
+=======
+    workerHireCost,
+    workerUpgradeCost,
+    unlockSelectedCost: 25 * unlockedPlotCount,
+>>>>>>> main
     handlers: {
       onTill,
       onWater,
@@ -164,6 +177,8 @@ export default function CandyboxView({
       onHarvestReadyOnActivePlot,
       onWaterDryPlantedOnActivePlot,
       onClearDebris,
+      onHireWorker,
+      onUpgradeWorkers,
       onPlant,
       onSellOne,
       onUnlockSelected,
@@ -176,15 +191,23 @@ export default function CandyboxView({
     plantableSeeds,
     sellableItems,
     canUnlockSelected,
+<<<<<<< codex/add-progression-layer-with-reveal-rules
     nextHireCost,
     nextLandCost,
     nextToolUpgradeCost,
+=======
+    workerHireCost,
+    workerUpgradeCost,
+    unlockedPlotCount,
+>>>>>>> main
     onTill,
     onWater,
     onHarvestSelected,
     onHarvestReadyOnActivePlot,
     onWaterDryPlantedOnActivePlot,
     onClearDebris,
+    onHireWorker,
+    onUpgradeWorkers,
     onPlant,
     onSellOne,
     onUnlockSelected,
@@ -237,6 +260,7 @@ export default function CandyboxView({
   }, [actionButtons, onPulseGrassRhythm, onPulseRockCrit, onPulseTreeTiming]);
 
   return (
+<<<<<<< codex/add-progression-layer-with-reveal-rules
     <main className="candybox-view stack-lg">
       <section className="candybox-block stack-sm">
         <p>
@@ -252,6 +276,26 @@ export default function CandyboxView({
           <button type="button" disabled={!canGoPrevPlot} onClick={onPrevPlot}>prev</button>
           <button type="button" disabled={!canGoNextPlot} onClick={onNextPlot}>next</button>
           <label htmlFor="plot-selector" className="sr-only">Active plot</label>
+=======
+    <main className="panel candybox-view stack-sm">
+      <h3>Candybox View</h3>
+      <p className="muted">
+        ${state.money} · Tick {state.tick} · Day {day} (t{tickInDay}/{DAY_TICKS}) · Plot {selectedPlotIndex + 1} · Spot {selectedSpotIndex + 1}
+      </p>
+      <p className="muted">Inventory: {formatInventorySummary(state.inventory)}</p>
+      <p className="muted">Tiles: {formatTileTypeSummary(tileTypeSummary)}</p>
+      <p className="muted">Workers: {state.workers?.length ?? 0} · Tool level: {state.workerConfig?.toolLevel ?? 0} · Hire: ${workerHireCost} · Upgrade: ${workerUpgradeCost}</p>
+
+      <div className="stack-row">
+        <button type="button" disabled={!canGoPrevPlot} onClick={onPrevPlot}>Prev plot</button>
+        <button type="button" disabled={!canGoNextPlot} onClick={onNextPlot}>Next plot</button>
+      </div>
+
+      <section className="panel stack-sm">
+        <strong>Summary selectors</strong>
+        <label htmlFor="plot-selector">
+          Active plot
+>>>>>>> main
           <select
             id="plot-selector"
             value={selectedPlotIndex}

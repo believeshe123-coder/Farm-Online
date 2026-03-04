@@ -405,6 +405,7 @@ export const SELLABLE_ITEMS = {
   },
   egg: { name: 'Egg', baselinePrice: 4, dailyVolatility: 0.05, weeklyVolatility: 0.1, minMultiplier: 0.75, maxMultiplier: 1.35 },
   wood: { name: 'Wood', baselinePrice: 2, dailyVolatility: 0.04, weeklyVolatility: 0.09, minMultiplier: 0.7, maxMultiplier: 1.3 },
+  grass: { name: 'Grass', baselinePrice: 2, dailyVolatility: 0.04, weeklyVolatility: 0.09, minMultiplier: 0.75, maxMultiplier: 1.35 },
   seeds: { name: 'Seeds', baselinePrice: 1, dailyVolatility: 0.03, weeklyVolatility: 0.07, minMultiplier: 0.8, maxMultiplier: 1.25 },
   rock: { name: 'Rock', baselinePrice: 2, dailyVolatility: 0.04, weeklyVolatility: 0.09, minMultiplier: 0.75, maxMultiplier: 1.35 },
 };

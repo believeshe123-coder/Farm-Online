@@ -173,9 +173,11 @@ function normalizePlots(rawPlots) {
         return {
           soil: normalizeSoil(sourceSpot?.soil),
           crop: normalizeCrop(sourceSpot?.crop),
-          debris: sourceSpot?.debris === 'wood' || sourceSpot?.debris === 'rock' || sourceSpot?.debris === 'seeds'
+          debris: sourceSpot?.debris === 'wood' || sourceSpot?.debris === 'rock' || sourceSpot?.debris === 'grass'
             ? sourceSpot.debris
-            : null,
+            : sourceSpot?.debris === 'seeds'
+              ? 'grass'
+              : null,
         };
       }),
     };
