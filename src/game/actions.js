@@ -425,6 +425,22 @@ export function onSpotClick(state, plotIndex, spotIndex) {
   };
 }
 
+export function selectSpot(state, plotIndex, spotIndex = 0) {
+  if (!isTileUnlocked(state, plotIndex)) {
+    return state;
+  }
+
+  const spot = state.plots?.[plotIndex]?.spots?.[spotIndex];
+  if (!spot) {
+    return state;
+  }
+
+  return {
+    ...state,
+    selected: { plotIndex, spotIndex },
+  };
+}
+
 export function harvestSpot(state, plotIndex, spotIndex) {
   if (!isTileUnlocked(state, plotIndex)) {
     return withUiMessage(state, 'That plot is locked.');

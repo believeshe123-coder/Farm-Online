@@ -465,3 +465,15 @@ h3 {
   background: rgba(223, 174, 121, 0.2);
   color: #f7deb9;
 }
+
+.candybox-view {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+  max-width: 720px;
+}
+
+.candybox-view ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
