@@ -9,6 +9,7 @@ import {
   withAutomationDefaults,
 } from './workers.js';
 import { processContractDeadlines, refreshContractOffers, settleContractSales } from './contracts.js';
+import { applyDailyProgression, getProgressionEffects, getScaledUpkeepCost, isFeatureUnlocked } from './progression.js';
 
 function addInventoryItem(inventory, itemId, amount = 1) {
   return {
@@ -110,7 +111,12 @@ function deriveRawProduction(state, tick, workerAllocation) {
 
 function processBuildingChain(state, rawProduction, nextTick) {
   const chain = state.buildingChain ?? {};
-  const profile = getBuildingChainModuleProfile(chain.modules);
+  const safeModules = {
+    storage: isFeatureUnlocked(state, 'buildings', chain.modules?.storage) ? chain.modules?.storage : 'silo',
+    processing: isFeatureUnlocked(state, 'buildings', chain.modules?.processing) ? chain.modules?.processing : 'mill',
+    export: isFeatureUnlocked(state, 'buildings', chain.modules?.export) ? chain.modules?.export : 'market_stall',
+  };
+  const profile = getBuildingChainModuleProfile(safeModules);
   const capacityByResource = { ...(profile.storage.capacityByResource ?? {}), ...(chain.capacityByResource ?? {}) };
   let storage = { ...(chain.storage ?? {}) };
 
@@ -128,6 +134,7 @@ function processBuildingChain(state, rawProduction, nextTick) {
 
   const processingKey = profile.processingId;
   const recipes = profile.processing.recipes ?? {};
+  const progressionEffects = getProgressionEffects(state.progression);
   const queueCapacity = profile.processing.queueCapacity ?? 0;
   const processingQueues = {
     mill: [...(chain.processingQueues?.mill ?? [])],
@@ -153,7 +160,13 @@ function processBuildingChain(state, rawProduction, nextTick) {
         storage[resourceId] = Math.max(0, (storage[resourceId] ?? 0) - needed);
       });
 
-      activeQueue.push({ recipeId, remainingTicks: recipe.durationTicks ?? 1, outputs: { ...(recipe.outputs ?? {}) } });
+      const scaledOutputs = Object.fromEntries(
+        Object.entries(recipe.outputs ?? {}).map(([resourceId, outputAmount]) => [
+          resourceId,
+          Math.max(0, Math.floor(outputAmount * progressionEffects.conversionRateMultiplier)),
+        ])
+      );
+      activeQueue.push({ recipeId, remainingTicks: recipe.durationTicks ?? 1, outputs: scaledOutputs });
 
       canEnqueue = false;
     }
@@ -698,8 +711,9 @@ export function advanceTick(state) {
 
   if (nextTick % DAY_TICKS === 0) {
     Object.entries(workingState.dailyUpkeepDemands ?? {}).forEach(([demandId, demandCost]) => {
-      if (canAffordFromPools(workingState.resourcePools ?? {}, demandCost)) {
-        workingState = applyCost(workingState, demandCost);
+      const scaledDemandCost = getScaledUpkeepCost(demandCost, workingState.progression);
+      if (canAffordFromPools(workingState.resourcePools ?? {}, scaledDemandCost)) {
+        workingState = applyCost(workingState, scaledDemandCost);
       } else {
         shortages.push(`upkeep:${demandId}`);
       }
@@ -714,6 +728,8 @@ export function advanceTick(state) {
       };
     }
   }
+
+  workingState = applyDailyProgression(workingState, nextTick);
 
   return {
     ...workingState,

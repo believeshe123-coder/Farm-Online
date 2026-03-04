@@ -2,6 +2,7 @@ import { BUILDING_MAINTENANCE, BUILDING_OPERATING_COSTS, DAILY_UPKEEP_DEMANDS, c
 import { createInitialWorkers, withAutomationDefaults } from './workers.js';
 import { createInitialContractState } from './contracts.js';
 import { createInitialBuildingChainState, getBaselineMarketPrices } from './constants.js';
+import { createInitialProgressionState } from './progression.js';
 
 export function getRandomDebris() {
   const roll = Math.random();
@@ -96,5 +97,6 @@ export function createNewGame() {
     selectedTool: { kind: 'tool', id: 'hoe' },
     uiMessage: '',
     buildingChain: createInitialBuildingChainState(),
+    progression: createInitialProgressionState(),
   };
 }

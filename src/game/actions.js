@@ -1,4 +1,5 @@
 import { BUILDING_CHAIN_MODULES, CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS, ZONE_TYPES, getBuildingChainModuleProfile } from './constants.js';
+import { canResearchTech, isFeatureUnlocked, researchTech } from './progression.js';
 import { acceptContract, settleContractSales } from './contracts.js';
 import { withAutomationDefaults } from './workers.js';
 import { createPlot } from './createNewGame.js';
@@ -592,6 +593,10 @@ export function buyItem(state, itemId, qty = 1) {
 }
 
 export function unlockPlot(state, tileToUnlock, zoneType = 'field') {
+  if (!isFeatureUnlocked(state, 'zones', zoneType)) {
+    return withUiMessage(state, 'Research required for that zone.');
+  }
+
   const unlockableTiles = getAdjacentLockedTiles(state.gridSize, state.unlockedTiles);
   if (unlockableTiles.length === 0) {
     return state;
@@ -635,6 +640,10 @@ export function getUnlockablePlots(state) {
 }
 
 export function placeBuilding(state, tileId, buildingId) {
+  if (!isFeatureUnlocked(state, 'buildings', buildingId)) {
+    return withUiMessage(state, 'Research required for that building.');
+  }
+
   if (!isTileUnlocked(state, tileId)) {
     return withUiMessage(state, 'That plot is locked.');
   }
@@ -846,6 +855,18 @@ export function acceptContractOffer(state, contractId) {
   return {
     ...state,
     contracts: acceptContract(state.contracts, contractId, state.tick),
+  };
+}
+
+
+export function researchTechNode(state, techId) {
+  if (!canResearchTech(state, techId)) {
+    return withUiMessage(state, 'Cannot research that technology yet.');
+  }
+
+  return {
+    ...researchTech(state, techId),
+    uiMessage: '',
   };
 }
 
