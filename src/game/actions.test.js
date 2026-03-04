@@ -29,6 +29,22 @@ function withMockedRandom(value, callback) {
   }
 }
 
+function withMockedRandomSequence(values, callback) {
+  const originalRandom = Math.random;
+  let index = 0;
+  Math.random = () => {
+    const value = values[Math.min(index, values.length - 1)] ?? 0;
+    index += 1;
+    return value;
+  };
+
+  try {
+    return callback();
+  } finally {
+    Math.random = originalRandom;
+  }
+}
+
 
 function clearDebrisAndPrepareSoil(state, plotIndex, spotIndex) {
   let nextState = { ...state, selectedTool: { kind: 'tool', id: 'hoe' } };
@@ -428,6 +444,45 @@ test('unlocking a new plot generates fresh randomized debris spots', () => {
   assert.equal(unlockedState.unlockedTiles[targetPlot], true);
   assert.ok(unlockedDebris.every((debris) => debris === 'seeds'));
   assert.notDeepEqual(unlockedDebris, initialDebris);
+});
+
+test('unlocking can assign a plot resource profile', () => {
+  const targetPlot = 7;
+  const baseState = { ...createNewGame(), money: 1000 };
+  const unlockedState = unlockPlot(baseState, targetPlot, 'forest');
+
+  assert.equal(unlockedState.unlockedTiles[targetPlot], true);
+  assert.equal(unlockedState.plots[targetPlot].resourceProfile, 'forest');
+});
+
+test('specialized plots auto-spawn weighted debris every 5 ticks', () => {
+  const targetPlot = 7;
+  let state = { ...createNewGame(), money: 1000, tick: 4 };
+  state = unlockPlot(state, targetPlot, 'rock');
+
+  state = {
+    ...state,
+    plots: state.plots.map((plot, index) => {
+      if (index !== targetPlot) {
+        return plot;
+      }
+
+      return {
+        ...plot,
+        spots: plot.spots.map((spot) => ({
+          ...spot,
+          soil: 'raw',
+          crop: null,
+          debris: null,
+        })),
+      };
+    }),
+  };
+
+  const nextState = withMockedRandomSequence([0, 0.7], () => advanceTick(state));
+
+  assert.equal(nextState.tick, 5);
+  assert.equal(nextState.plots[targetPlot].spots[0].debris, 'rock');
 });
 
 

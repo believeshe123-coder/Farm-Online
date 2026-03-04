@@ -50,6 +50,7 @@ export default function ShopPanel({
   const [showUnaffordable, setShowUnaffordable] = useState(false);
   const canBuild = selectedPlotIndex !== null;
   const [selectedPlotToUnlock, setSelectedPlotToUnlock] = useState('');
+  const [selectedPlotProfile, setSelectedPlotProfile] = useState('mixed');
   const sellSections = useMemo(() => buildSellSections(inventory), [inventory]);
   const visibleSeedEntries = useMemo(
     () => Object.entries(SHOP_SEEDS).filter(([, item]) => showUnaffordable || money >= item.buyPrice),
@@ -182,13 +183,27 @@ export default function ShopPanel({
                 {!showPlotUnlock && unlockablePlots.length > 0 && <p className="muted">No affordable plot unlocks right now.</p>}
                 {unlockablePlots.length === 0 && <p className="muted">No adjacent plots available to unlock.</p>}
                 {showPlotUnlock && (
-                  <button
-                    type="button"
-                    disabled={!canUnlockPlot || selectedPlotToUnlock === ''}
-                    onClick={() => onUnlockPlot(Number(selectedPlotToUnlock))}
-                  >
-                    {unlockedPlotCount >= totalPlots ? 'Unlock Plot (All plots unlocked)' : `Unlock Plot - $${unlockCost}`}
-                  </button>
+                  <>
+                    <label>
+                      Plot type
+                      <select
+                        value={selectedPlotProfile}
+                        onChange={(event) => setSelectedPlotProfile(event.target.value)}
+                      >
+                        <option value="mixed">Mixed</option>
+                        <option value="forest">Forest</option>
+                        <option value="rock">Rock</option>
+                        <option value="seeds">Seed</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      disabled={!canUnlockPlot || selectedPlotToUnlock === ''}
+                      onClick={() => onUnlockPlot(Number(selectedPlotToUnlock), selectedPlotProfile)}
+                    >
+                      {unlockedPlotCount >= totalPlots ? 'Unlock Plot (All plots unlocked)' : `Unlock Plot - $${unlockCost}`}
+                    </button>
+                  </>
                 )}
               </div>
             </details>

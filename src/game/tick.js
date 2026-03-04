@@ -2,6 +2,66 @@ import { CROPS } from './constants.js';
 import { applyCost, applyYield, canAffordCost, isCropHydratedAtTick } from './actions.js';
 import { DAY_TICKS } from './economy.js';
 
+const DEBRIS_SPAWN_INTERVAL = 5;
+
+function getDebrisWeights(resourceProfile = 'mixed') {
+  if (resourceProfile === 'forest') {
+    return { wood: 0.65, rock: 0.15, seeds: 0.2 };
+  }
+
+  if (resourceProfile === 'rock') {
+    return { wood: 0.15, rock: 0.65, seeds: 0.2 };
+  }
+
+  if (resourceProfile === 'seeds') {
+    return { wood: 0.15, rock: 0.2, seeds: 0.65 };
+  }
+
+  return { wood: 0.34, rock: 0.33, seeds: 0.33 };
+}
+
+function rollDebrisByWeights(resourceProfile = 'mixed') {
+  const weights = getDebrisWeights(resourceProfile);
+  let roll = Math.random();
+
+  if (roll < weights.wood) {
+    return 'wood';
+  }
+
+  roll -= weights.wood;
+  if (roll < weights.rock) {
+    return 'rock';
+  }
+
+  return 'seeds';
+}
+
+function spawnDebrisForPlot(plot) {
+  if (!Array.isArray(plot?.spots)) {
+    return plot;
+  }
+
+  const spawnableIndexes = plot.spots
+    .map((spot, index) => (spot && !spot.crop && !spot.debris && spot.soil === 'raw' ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (spawnableIndexes.length === 0) {
+    return plot;
+  }
+
+  const spawnIndex = spawnableIndexes[Math.floor(Math.random() * spawnableIndexes.length)];
+  const spots = [...plot.spots];
+  spots[spawnIndex] = {
+    ...spots[spawnIndex],
+    debris: rollDebrisByWeights(plot.resourceProfile),
+  };
+
+  return {
+    ...plot,
+    spots,
+  };
+}
+
 function addInventoryItem(inventory, itemId, amount = 1) {
   return {
     ...inventory,
@@ -121,27 +181,14 @@ export function advanceTick(state) {
     };
   });
 
-  if (nextTick % DAY_TICKS === 0) {
-    const upkeepEntries = Object.entries(state.dailyUpkeepDemands ?? {});
-    for (const [upkeepId, demand] of upkeepEntries) {
-      if (canAffordCost(workingState, demand)) {
-        workingState = applyCost(workingState, demand);
-
-        if (upkeepId === 'pumps') {
-          workingState = applyYield(workingState, { water: 3 });
-        }
-      } else {
-        shortages.push(`upkeep:${upkeepId}`);
-      }
-    }
-  }
+  const shouldSpawnPlotDebris = nextTick % DEBRIS_SPAWN_INTERVAL === 0;
 
   const nextPlots = state.plots.map((plot, plotIndex) => {
     if (!state.unlockedTiles[plotIndex] || !Array.isArray(plot?.spots)) {
       return plot;
     }
 
-    return {
+    let nextPlot = {
       ...plot,
       spots: plot.spots.map((spot) => {
         if (!spot.crop) {
@@ -165,6 +212,12 @@ export function advanceTick(state) {
         };
       }),
     };
+
+    if (shouldSpawnPlotDebris) {
+      nextPlot = spawnDebrisForPlot(nextPlot);
+    }
+
+    return nextPlot;
   });
 
   workingState = {
