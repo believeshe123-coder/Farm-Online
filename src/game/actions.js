@@ -187,8 +187,8 @@ function debrisToInventoryItem(debris) {
     return 'wood';
   }
 
-  if (debris === 'seeds') {
-    return 'seeds';
+  if (debris === 'grass') {
+    return 'grass';
   }
 
   if (debris === 'rock') {
@@ -329,9 +329,10 @@ export function onSpotClick(state, plotIndex, spotIndex) {
 
   if (spot.debris) {
     const debrisItemId = debrisToInventoryItem(spot.debris);
+    const miniGameBonus = Math.random() < 0.2 ? 1 : 0;
     let nextInventory = state.inventory;
     if (debrisItemId) {
-      const inventoryWithDebris = adjustInventory(nextInventory, debrisItemId, 1);
+      const inventoryWithDebris = adjustInventory(nextInventory, debrisItemId, 1 + miniGameBonus);
       if (inventoryWithDebris) {
         nextInventory = inventoryWithDebris;
       }
@@ -353,6 +354,7 @@ export function onSpotClick(state, plotIndex, spotIndex) {
       ...state,
       plots: nextPlots,
       inventory: nextInventory,
+      uiMessage: miniGameBonus > 0 ? 'Great hit! Bonus resource gained.' : '',
       hotbarItems: debrisItemId ? addItemToHotbar(state.hotbarItems, debrisItemId) : state.hotbarItems,
       selected: { plotIndex, spotIndex },
     };
@@ -972,5 +974,55 @@ export function setAutoSellItemThreshold(state, itemId, minStock) {
         [itemId]: Math.max(0, Number(minStock) || 0),
       },
     },
+  };
+}
+
+
+export function getWorkerHireCost(state) {
+  const workerCount = state.workers?.length ?? 0;
+  return 20 + (workerCount * 10);
+}
+
+export function getWorkerToolUpgradeCost(state) {
+  const toolLevel = state.workerConfig?.toolLevel ?? 0;
+  return 40 + (toolLevel * 30);
+}
+
+export function hireWorker(state) {
+  const cost = getWorkerHireCost(state);
+  if (!canAffordCost(state, { coins: cost })) {
+    return state;
+  }
+
+  const paidState = applyCost(state, { coins: cost });
+  const nextWorkers = [...(paidState.workers ?? [])];
+  nextWorkers.push({
+    id: `worker-${nextWorkers.length + 1}`,
+    assignmentId: null,
+    fatigue: 0,
+    upkeep: 0,
+  });
+
+  return {
+    ...paidState,
+    workers: nextWorkers,
+    uiMessage: 'Hired 1 worker.',
+  };
+}
+
+export function upgradeWorkerTools(state) {
+  const cost = getWorkerToolUpgradeCost(state);
+  if (!canAffordCost(state, { coins: cost })) {
+    return state;
+  }
+
+  const paidState = applyCost(state, { coins: cost });
+  return {
+    ...paidState,
+    workerConfig: {
+      ...(paidState.workerConfig ?? {}),
+      toolLevel: (paidState.workerConfig?.toolLevel ?? 0) + 1,
+    },
+    uiMessage: 'Worker tools upgraded.',
   };
 }

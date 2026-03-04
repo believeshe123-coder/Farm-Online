@@ -14,6 +14,22 @@ function isEarlyGame(progression) {
   return techCount === 0 && milestoneCount === 0;
 }
 
+function getDebrisActionLabel(debrisType) {
+  if (debrisType === 'wood') {
+    return 'Cut down trees';
+  }
+
+  if (debrisType === 'grass') {
+    return 'Cut grass';
+  }
+
+  if (debrisType === 'rock') {
+    return 'Break rocks';
+  }
+
+  return 'Clear debris';
+}
+
 export function getAvailableActions(gameState) {
   const progression = gameState.progression ?? {};
   const handlers = gameState.handlers ?? {};
@@ -26,10 +42,13 @@ export function getAvailableActions(gameState) {
   const coopUnlocked = hasTech(progression, 'genetics') || hasMilestone(progression, 'positive_balance_10_days');
   const researchUnlocked = (progression.researchPoints ?? 0) > 0 || hasMilestone(progression, 'positive_balance_10_days');
 
+  const workerHireCost = gameState.workerHireCost ?? 0;
+  const workerUpgradeCost = gameState.workerUpgradeCost ?? 0;
+
   const actions = [
     {
       id: 'clear-debris',
-      label: selectedSpot?.debris ? `Clear ${selectedSpot.debris}` : 'Clear debris',
+      label: getDebrisActionLabel(selectedSpot?.debris),
       isVisible: Boolean(selectedSpot?.debris),
       isEnabled: Boolean(selectedSpot?.debris),
       execute: handlers.onClearDebris,
@@ -83,6 +102,21 @@ export function getAvailableActions(gameState) {
       isEnabled: (gameState.inventory?.[item.itemId] ?? 0) > 0,
       execute: () => handlers.onSellOne?.(item.itemId),
     })),
+
+    {
+      id: 'hire-worker',
+      label: `Hire worker ($${workerHireCost})`,
+      isVisible: true,
+      isEnabled: (gameState.money ?? 0) >= workerHireCost,
+      execute: handlers.onHireWorker,
+    },
+    {
+      id: 'upgrade-workers',
+      label: `Upgrade workers ($${workerUpgradeCost})`,
+      isVisible: true,
+      isEnabled: (gameState.money ?? 0) >= workerUpgradeCost,
+      execute: handlers.onUpgradeWorkers,
+    },
     {
       id: 'unlock-selected',
       label: 'Unlock selected plot',
