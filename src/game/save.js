@@ -19,11 +19,13 @@ function createDefaultSpot() {
   return {
     soil: 'raw',
     crop: null,
+    debris: null,
   };
 }
 
 function createDefaultPlot() {
   return {
+    resourceProfile: 'mixed',
     spots: Array.from({ length: 25 }, createDefaultSpot),
   };
 }
@@ -129,12 +131,20 @@ function normalizePlots(rawPlots) {
     const sourcePlot = rawPlots?.[plotIndex];
     const sourceSpots = Array.isArray(sourcePlot?.spots) ? sourcePlot.spots : [];
 
+    const resourceProfile = sourcePlot?.resourceProfile;
+
     return {
+      resourceProfile: resourceProfile === 'forest' || resourceProfile === 'rock' || resourceProfile === 'seeds' || resourceProfile === 'mixed'
+        ? resourceProfile
+        : 'mixed',
       spots: Array.from({ length: 25 }, (_, spotIndex) => {
         const sourceSpot = sourceSpots[spotIndex];
         return {
           soil: normalizeSoil(sourceSpot?.soil),
           crop: normalizeCrop(sourceSpot?.crop),
+          debris: sourceSpot?.debris === 'wood' || sourceSpot?.debris === 'rock' || sourceSpot?.debris === 'seeds'
+            ? sourceSpot.debris
+            : null,
         };
       }),
     };

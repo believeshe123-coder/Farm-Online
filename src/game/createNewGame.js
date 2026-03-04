@@ -24,8 +24,9 @@ export function createSpot() {
   };
 }
 
-export function createPlot() {
+export function createPlot(resourceProfile = 'mixed') {
   return {
+    resourceProfile,
     spots: Array.from({ length: 25 }, createSpot),
   };
 }
