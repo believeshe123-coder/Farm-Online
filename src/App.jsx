@@ -159,6 +159,25 @@ export default function App() {
   const isSelectedTileUnlocked = selectedPlotIndex !== null && gameState.unlockedTiles[selectedPlotIndex];
   const selectedCoop = selectedTile?.type === 'coop' ? selectedTile : null;
 
+
+  const updateSelectedPlot = (updater) => {
+    setGameState((prevState) => {
+      const plotIndex = prevState.selected?.plotIndex;
+      if (!Number.isInteger(plotIndex) || !prevState.unlockedTiles?.[plotIndex]) {
+        return prevState;
+      }
+
+      const nextPlots = [...prevState.plots];
+      nextPlots[plotIndex] = updater(nextPlots[plotIndex]);
+
+      return {
+        ...prevState,
+        plots: nextPlots,
+      };
+    });
+  };
+
+
   if (view === 'front') {
     return (
       <div className="app-shell">
@@ -201,6 +220,7 @@ export default function App() {
             selected={gameState.selected}
             selectedSpot={selectedSpot}
             selectedTile={selectedTile}
+            selectedPlot={selectedPlot}
             tick={gameState.tick}
             isSelectedTileUnlocked={isSelectedTileUnlocked}
             unlockedPlotCount={unlockedPlotCount}
@@ -214,6 +234,9 @@ export default function App() {
               })
             }
             onOpenCoop={() => setIsCoopModalOpen(true)}
+            onSetZoneType={(zoneType) => updateSelectedPlot((plot) => ({ ...plot, zoneType, productionPolicy: null }))}
+            onSetZonePolicy={(productionPolicy) => updateSelectedPlot((plot) => ({ ...plot, productionPolicy }))}
+            onSetZoneWorkers={(assignedWorkers) => updateSelectedPlot((plot) => ({ ...plot, assignedWorkers: Math.max(0, assignedWorkers || 0) }))}
             onCollectResource={() =>
               setGameState((prevState) => {
                 if (!prevState.selected) {
@@ -226,6 +249,7 @@ export default function App() {
           />
           <ShopPanel
             selectedPlotIndex={selectedPlotIndex}
+            selectedPlot={selectedPlot}
             money={gameState.money}
             inventory={gameState.inventory}
             onBuild={(buildingId) =>
@@ -245,6 +269,9 @@ export default function App() {
             onUnlockPlot={(plotIndex, plotProfile) => setGameState((prevState) => unlockPlot(prevState, plotIndex, plotProfile))}
             onBuySeed={(itemId) => setGameState((prevState) => buyItem(prevState, itemId))}
             onSellItem={(itemId, qty = 1) => setGameState((prevState) => sellItem(prevState, itemId, qty))}
+            onSetPlotZone={(zoneType) => updateSelectedPlot((plot) => ({ ...plot, zoneType, productionPolicy: null }))}
+            onSetPlotPolicy={(productionPolicy) => updateSelectedPlot((plot) => ({ ...plot, productionPolicy }))}
+            onSetPlotWorkers={(assignedWorkers) => updateSelectedPlot((plot) => ({ ...plot, assignedWorkers: Math.max(0, assignedWorkers || 0) }))}
           />
         </aside>
       </main>

@@ -25,7 +25,10 @@ function createDefaultSpot() {
 
 function createDefaultPlot() {
   return {
-    resourceProfile: 'mixed',
+    zoneType: 'field',
+    level: 1,
+    assignedWorkers: 1,
+    productionPolicy: null,
     spots: Array.from({ length: 25 }, createDefaultSpot),
   };
 }
@@ -126,17 +129,45 @@ function normalizeSoil(soil) {
   return 'raw';
 }
 
+
+function mapLegacyProfileToZoneType(resourceProfile) {
+  if (resourceProfile === 'forest') {
+    return 'forest';
+  }
+
+  if (resourceProfile === 'rock') {
+    return 'quarry';
+  }
+
+  if (resourceProfile === 'seeds') {
+    return 'seed_lab';
+  }
+
+  return 'field';
+}
+
 function normalizePlots(rawPlots) {
   return Array.from({ length: TOTAL_TILES }, (_, plotIndex) => {
     const sourcePlot = rawPlots?.[plotIndex];
     const sourceSpots = Array.isArray(sourcePlot?.spots) ? sourcePlot.spots : [];
 
-    const resourceProfile = sourcePlot?.resourceProfile;
+    const rawZoneType = sourcePlot?.zoneType;
+    const legacyResourceProfile = sourcePlot?.resourceProfile;
+    const zoneType = rawZoneType === 'field' || rawZoneType === 'forest' || rawZoneType === 'quarry' || rawZoneType === 'pasture'
+      || rawZoneType === 'greenhouse' || rawZoneType === 'seed_lab'
+      ? rawZoneType
+      : mapLegacyProfileToZoneType(legacyResourceProfile);
+    const level = Number.isInteger(sourcePlot?.level) && sourcePlot.level >= 1 ? sourcePlot.level : 1;
+    const assignedWorkers = Number.isInteger(sourcePlot?.assignedWorkers) && sourcePlot.assignedWorkers >= 0
+      ? sourcePlot.assignedWorkers
+      : 1;
+    const productionPolicy = typeof sourcePlot?.productionPolicy === 'string' ? sourcePlot.productionPolicy : null;
 
     return {
-      resourceProfile: resourceProfile === 'forest' || resourceProfile === 'rock' || resourceProfile === 'seeds' || resourceProfile === 'mixed'
-        ? resourceProfile
-        : 'mixed',
+      zoneType,
+      level,
+      assignedWorkers,
+      productionPolicy,
       spots: Array.from({ length: 25 }, (_, spotIndex) => {
         const sourceSpot = sourceSpots[spotIndex];
         return {

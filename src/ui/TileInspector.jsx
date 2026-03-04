@@ -1,4 +1,4 @@
-import { CROPS } from '../game/constants';
+import { CROPS, getZoneNetProduction, ZONE_DEFINITIONS } from '../game/constants';
 import { getWateringDurationTicks, isCropHydratedAtTick } from '../game/actions';
 
 const BASE_UNLOCK_PLOT_COST = 25;
@@ -27,12 +27,16 @@ export default function TileInspector({
   selected,
   selectedSpot,
   selectedTile,
+  selectedPlot,
   tick,
   onHarvest,
   onOpenCoop,
   onCollectResource,
   isSelectedTileUnlocked,
   unlockedPlotCount,
+  onSetZoneType,
+  onSetZonePolicy,
+  onSetZoneWorkers,
 }) {
   if (!selected || !selectedSpot) {
     return (
@@ -102,6 +106,10 @@ export default function TileInspector({
   const stage = progress === null ? 'None' : getStage(progress);
   const canHarvest = Boolean(progress !== null && progress >= 1);
 
+  const zoneDefinition = selectedPlot ? ZONE_DEFINITIONS[selectedPlot.zoneType] : null;
+  const zonePolicyId = zoneDefinition?.policies?.[selectedPlot?.productionPolicy] ? selectedPlot.productionPolicy : zoneDefinition?.defaultPolicy;
+  const zoneNet = selectedPlot ? getZoneNetProduction(selectedPlot.zoneType, selectedPlot.level, zonePolicyId) : null;
+
   let wateringStatus = null;
   if (selectedSpot.crop) {
     const hydrated = isCropHydratedAtTick(selectedSpot.crop, tick);
@@ -127,6 +135,44 @@ export default function TileInspector({
       <p>
         <strong>Spot:</strong> {selected.spotIndex + 1}
       </p>
+      {zoneDefinition && selectedPlot && (
+        <>
+          <label>
+            Zone
+            <select value={selectedPlot.zoneType} onChange={(event) => onSetZoneType(event.target.value)}>
+              {Object.entries(ZONE_DEFINITIONS).map(([zoneType, definition]) => (
+                <option key={zoneType} value={zoneType}>{definition.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Recipe / policy
+            <select value={zonePolicyId} onChange={(event) => onSetZonePolicy(event.target.value)}>
+              {Object.entries(zoneDefinition.policies).map(([policyId, policy]) => (
+                <option key={policyId} value={policyId}>{policy.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Workers
+            <input
+              type="number"
+              min="0"
+              max="12"
+              value={selectedPlot.assignedWorkers ?? 0}
+              onChange={(event) => onSetZoneWorkers(Number(event.target.value))}
+            />
+          </label>
+          {zoneNet && (
+            <>
+              <p><strong>Net/tick:</strong> {Object.entries(zoneNet.netPerTick).map(([id, amount]) => `${id}:${amount}`).join(', ') || '0'}</p>
+              <p><strong>Net/day:</strong> {Object.entries(zoneNet.netPerDay).map(([id, amount]) => `${id}:${amount}`).join(', ') || '0'}</p>
+              <p><strong>Cycle:</strong> {zoneNet.cycleTimeTicks} ticks | <strong>Workers required:</strong> {zoneNet.workerRequirement}</p>
+              <p><strong>Upgrades:</strong> {zoneNet.upgrades.map((upgrade) => `L${upgrade.level} (${upgrade.outputMultiplier}x output, ${upgrade.cycleTimeMultiplier}x cycle)`).join('; ')}</p>
+            </>
+          )}
+        </>
+      )}
       <p>
         <strong>Soil:</strong> {selectedSpot.soil}
       </p>

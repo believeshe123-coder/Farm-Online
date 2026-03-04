@@ -1,9 +1,9 @@
-import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS } from './constants.js';
+import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, WATERING_DURATION_TICKS, ZONE_TYPES } from './constants.js';
 import { createPlot } from './createNewGame.js';
 import { applyCostToPools, applyYieldToPools, canAffordFromPools } from './economy.js';
 
 const BASE_UNLOCK_PLOT_COST = 25;
-const PLOT_RESOURCE_PROFILES = new Set(['mixed', 'forest', 'rock', 'seeds']);
+
 
 function isTileUnlocked(state, tileIndex) {
   return Boolean(state.unlockedTiles?.[tileIndex]);
@@ -539,7 +539,7 @@ export function buyItem(state, itemId, qty = 1) {
   };
 }
 
-export function unlockPlot(state, tileToUnlock, resourceProfile = 'mixed') {
+export function unlockPlot(state, tileToUnlock, zoneType = 'field') {
   const unlockableTiles = getAdjacentLockedTiles(state.gridSize, state.unlockedTiles);
   if (unlockableTiles.length === 0) {
     return state;
@@ -558,7 +558,7 @@ export function unlockPlot(state, tileToUnlock, resourceProfile = 'mixed') {
   nextUnlockedTiles[tileToUnlock] = true;
 
   const nextPlots = [...state.plots];
-  nextPlots[tileToUnlock] = createPlot(PLOT_RESOURCE_PROFILES.has(resourceProfile) ? resourceProfile : 'mixed');
+  nextPlots[tileToUnlock] = createPlot(ZONE_TYPES.has(zoneType) ? zoneType : 'field');
 
   const paidState = applyCost(state, { coins: unlockCost });
 

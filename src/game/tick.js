@@ -1,71 +1,96 @@
-import { CROPS } from './constants.js';
-import { applyCost, applyYield, canAffordCost, isCropHydratedAtTick } from './actions.js';
+import { CROPS, getZoneCycleConfig } from './constants.js';
 import { DAY_TICKS } from './economy.js';
-
-const DEBRIS_SPAWN_INTERVAL = 5;
-
-function getDebrisWeights(resourceProfile = 'mixed') {
-  if (resourceProfile === 'forest') {
-    return { wood: 0.65, rock: 0.15, seeds: 0.2 };
-  }
-
-  if (resourceProfile === 'rock') {
-    return { wood: 0.15, rock: 0.65, seeds: 0.2 };
-  }
-
-  if (resourceProfile === 'seeds') {
-    return { wood: 0.15, rock: 0.2, seeds: 0.65 };
-  }
-
-  return { wood: 0.34, rock: 0.33, seeds: 0.33 };
-}
-
-function rollDebrisByWeights(resourceProfile = 'mixed') {
-  const weights = getDebrisWeights(resourceProfile);
-  let roll = Math.random();
-
-  if (roll < weights.wood) {
-    return 'wood';
-  }
-
-  roll -= weights.wood;
-  if (roll < weights.rock) {
-    return 'rock';
-  }
-
-  return 'seeds';
-}
-
-function spawnDebrisForPlot(plot) {
-  if (!Array.isArray(plot?.spots)) {
-    return plot;
-  }
-
-  const spawnableIndexes = plot.spots
-    .map((spot, index) => (spot && !spot.crop && !spot.debris && spot.soil === 'raw' ? index : -1))
-    .filter((index) => index >= 0);
-
-  if (spawnableIndexes.length === 0) {
-    return plot;
-  }
-
-  const spawnIndex = spawnableIndexes[Math.floor(Math.random() * spawnableIndexes.length)];
-  const spots = [...plot.spots];
-  spots[spawnIndex] = {
-    ...spots[spawnIndex],
-    debris: rollDebrisByWeights(plot.resourceProfile),
-  };
-
-  return {
-    ...plot,
-    spots,
-  };
-}
+import { applyCost, applyYield, canAffordCost, isCropHydratedAtTick } from './actions.js';
 
 function addInventoryItem(inventory, itemId, amount = 1) {
   return {
     ...inventory,
     [itemId]: (inventory[itemId] ?? 0) + amount,
+  };
+}
+
+function hasInventoryCost(inventory, costMap = {}) {
+  return Object.entries(costMap).every(([itemId, amount]) => (inventory[itemId] ?? 0) >= amount);
+}
+
+function applyInventoryCost(inventory, costMap = {}) {
+  const nextInventory = { ...inventory };
+
+  for (const [itemId, amount] of Object.entries(costMap)) {
+    if (amount <= 0) {
+      continue;
+    }
+
+    const nextAmount = (nextInventory[itemId] ?? 0) - amount;
+    if (nextAmount <= 0) {
+      delete nextInventory[itemId];
+    } else {
+      nextInventory[itemId] = nextAmount;
+    }
+  }
+
+  return nextInventory;
+}
+
+function splitCostMap(costMap = {}, state) {
+  const poolIds = new Set(Object.keys(state.resourcePools ?? {}));
+
+  return Object.entries(costMap).reduce((parts, [resourceId, amount]) => {
+    if (poolIds.has(resourceId)) {
+      parts.poolCost[resourceId] = amount;
+    } else {
+      parts.inventoryCost[resourceId] = amount;
+    }
+    return parts;
+  }, { poolCost: {}, inventoryCost: {} });
+}
+
+function splitYieldMap(yieldMap = {}, state) {
+  const poolIds = new Set(Object.keys(state.resourcePools ?? {}));
+
+  return Object.entries(yieldMap).reduce((parts, [resourceId, amount]) => {
+    if (poolIds.has(resourceId)) {
+      parts.poolYield[resourceId] = amount;
+    } else {
+      parts.inventoryYield[resourceId] = amount;
+    }
+    return parts;
+  }, { poolYield: {}, inventoryYield: {} });
+}
+
+function processZoneCycle(state, plot, tick, shortages, plotIndex) {
+  const zoneConfig = getZoneCycleConfig(plot.zoneType, plot.level, plot.productionPolicy);
+  const workers = Math.max(0, Number(plot.assignedWorkers) || 0);
+
+  if (workers < zoneConfig.workerRequirement || tick % zoneConfig.cycleTimeTicks !== 0) {
+    return state;
+  }
+
+  const { poolCost, inventoryCost } = splitCostMap(zoneConfig.inputs, state);
+  if (!canAffordCost(state, poolCost) || !hasInventoryCost(state.inventory, inventoryCost)) {
+    shortages.push(`zone-input:${zoneConfig.zoneType}:${plotIndex}`);
+    return state;
+  }
+
+  let nextState = state;
+  if (Object.keys(poolCost).length > 0) {
+    nextState = applyCost(nextState, poolCost);
+  }
+
+  let nextInventory = applyInventoryCost(nextState.inventory, inventoryCost);
+  const { poolYield, inventoryYield } = splitYieldMap(zoneConfig.outputs, nextState);
+
+  if (Object.keys(poolYield).length > 0) {
+    nextState = applyYield(nextState, poolYield);
+  }
+
+  Object.entries(inventoryYield).forEach(([resourceId, amount]) => {
+    nextInventory = addInventoryItem(nextInventory, resourceId, amount);
+  });
+
+  return {
+    ...nextState,
+    inventory: nextInventory,
   };
 }
 
@@ -146,11 +171,7 @@ export function advanceTick(state) {
       };
     }
 
-    if (tile.type !== 'coop' || !Array.isArray(tile.animals)) {
-      return tile;
-    }
-
-    if (efficiency === 0) {
+    if (tile.type !== 'coop' || !Array.isArray(tile.animals) || efficiency === 0) {
       return tile;
     }
 
@@ -181,14 +202,12 @@ export function advanceTick(state) {
     };
   });
 
-  const shouldSpawnPlotDebris = nextTick % DEBRIS_SPAWN_INTERVAL === 0;
-
-  const nextPlots = state.plots.map((plot, plotIndex) => {
+  let nextPlots = state.plots.map((plot, plotIndex) => {
     if (!state.unlockedTiles[plotIndex] || !Array.isArray(plot?.spots)) {
       return plot;
     }
 
-    let nextPlot = {
+    return {
       ...plot,
       spots: plot.spots.map((spot) => {
         if (!spot.crop) {
@@ -212,12 +231,6 @@ export function advanceTick(state) {
         };
       }),
     };
-
-    if (shouldSpawnPlotDebris) {
-      nextPlot = spawnDebrisForPlot(nextPlot);
-    }
-
-    return nextPlot;
   });
 
   workingState = {
@@ -227,6 +240,28 @@ export function advanceTick(state) {
     inventory: nextInventory,
     buildingMaintenanceTimers: nextMaintenanceTimers,
   };
+
+  nextPlots = nextPlots.map((plot, plotIndex) => {
+    if (!state.unlockedTiles[plotIndex] || !Array.isArray(plot?.spots)) {
+      return plot;
+    }
+
+    workingState = processZoneCycle(workingState, plot, nextTick, shortages, plotIndex);
+    return plot;
+  });
+
+
+  if (nextTick % DAY_TICKS === 0) {
+    Object.entries(workingState.dailyUpkeepDemands ?? {}).forEach(([demandId, demandCost]) => {
+      if (canAffordCost(workingState, demandCost)) {
+        workingState = applyCost(workingState, demandCost);
+      } else {
+        shortages.push(`upkeep:${demandId}`);
+      }
+    });
+
+    workingState = applyYield(workingState, { water: 3 });
+  }
 
   return {
     ...workingState,
