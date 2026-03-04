@@ -3,6 +3,7 @@ import FrontView from './ui/FrontView';
 import CandyboxView from './ui/CandyboxView';
 import { createNewGame } from './game/createNewGame';
 import { createInitialBuildingChainState, SHOP_SEEDS, SELLABLE_ITEMS } from './game/constants';
+import { isSpotReadyToHarvest } from './ui/candyboxSummary';
 import { createInitialWorkers } from './game/workers';
 import { loadGame, saveGame } from './game/save';
 import { advanceTick } from './game/tick';
@@ -13,6 +14,8 @@ import {
   sellItem,
   unlockPlot,
   selectSpot,
+  waterSpot,
+  isCropHydratedAtTick,
 } from './game/actions';
 
 function withSelectedTool(gameState) {
@@ -59,6 +62,28 @@ function getSelectedIndexes(gameState) {
   return { selectedPlotIndex, selectedSpotIndex, unlockedPlots };
 }
 
+
+function getSpotIndexForGroup(plot, group, gameState) {
+  const spots = plot?.spots ?? [];
+
+  if (group === 'ready') {
+    const readyIndex = spots.findIndex((spot) => isSpotReadyToHarvest(spot, gameState.tick));
+    return readyIndex >= 0 ? readyIndex : 0;
+  }
+
+  if (group === 'empty') {
+    const emptyIndex = spots.findIndex((spot) => !spot?.crop && !spot?.debris);
+    return emptyIndex >= 0 ? emptyIndex : 0;
+  }
+
+  if (group === 'debris') {
+    const debrisIndex = spots.findIndex((spot) => Boolean(spot?.debris));
+    return debrisIndex >= 0 ? debrisIndex : 0;
+  }
+
+  return 0;
+}
+
 export default function App() {
   const [view, setView] = useState('game');
   const [gameState, setGameState] = useState(() => {
@@ -67,6 +92,7 @@ export default function App() {
   });
   const [isPaused, setIsPaused] = useState(false);
   const [frontMessage, setFrontMessage] = useState('');
+  const [activeSpotGroup, setActiveSpotGroup] = useState('all');
 
   useEffect(() => {
     saveGame(gameState);
@@ -150,6 +176,21 @@ export default function App() {
         canUnlockSelected={canUnlockSelected}
         plantableSeeds={plantableSeeds}
         sellableItems={sellableItems}
+        activeSpotGroup={activeSpotGroup}
+        onSelectPlot={(plotIndex) => setGameState((prevState) => {
+          const targetPlot = prevState.plots[plotIndex];
+          const targetSpotIndex = getSpotIndexForGroup(targetPlot, activeSpotGroup, prevState);
+          return selectSpot(prevState, plotIndex, targetSpotIndex);
+        })}
+        onSpotGroupChange={(group) => {
+          setActiveSpotGroup(group);
+          setGameState((prevState) => {
+            const { selectedPlotIndex: plotIndex } = getSelectedIndexes(prevState);
+            const targetPlot = prevState.plots[plotIndex];
+            const targetSpotIndex = getSpotIndexForGroup(targetPlot, group, prevState);
+            return selectSpot(prevState, plotIndex, targetSpotIndex);
+          });
+        }}
         onPrevPlot={() => setGameState((prevState) => {
           const { unlockedPlots: nextUnlockedPlots } = getSelectedIndexes(prevState);
           const currentIndex = nextUnlockedPlots.indexOf(prevState.selected?.plotIndex ?? nextUnlockedPlots[0]);
@@ -188,20 +229,36 @@ export default function App() {
           const { selectedPlotIndex: plotIndex, selectedSpotIndex: spotIndex } = getSelectedIndexes(prevState);
           return harvestSpot(prevState, plotIndex, spotIndex);
         })}
-        onHarvestReady={() => setGameState((prevState) => {
+        onHarvestReadyOnActivePlot={() => setGameState((prevState) => {
+          const { selectedPlotIndex: plotIndex } = getSelectedIndexes(prevState);
+          const spotCount = prevState.plots[plotIndex]?.spots?.length ?? 0;
           let nextState = prevState;
-          prevState.unlockedTiles.forEach((isUnlocked, plotIndex) => {
-            if (!isUnlocked) {
+
+          for (let spotIndex = 0; spotIndex < spotCount; spotIndex += 1) {
+            nextState = harvestSpot(nextState, plotIndex, spotIndex);
+          }
+
+          return nextState;
+        })}
+        onWaterDryPlantedOnActivePlot={() => setGameState((prevState) => {
+          const { selectedPlotIndex: plotIndex, selectedSpotIndex: fallbackSpotIndex } = getSelectedIndexes(prevState);
+          const spots = prevState.plots[plotIndex]?.spots ?? [];
+          let nextState = prevState;
+
+          spots.forEach((spot, spotIndex) => {
+            if (!spot?.crop) {
               return;
             }
 
-            const spotCount = prevState.plots[plotIndex]?.spots?.length ?? 0;
-            for (let spotIndex = 0; spotIndex < spotCount; spotIndex += 1) {
-              nextState = harvestSpot(nextState, plotIndex, spotIndex);
+            if (!isCropHydratedAtTick(spot.crop, prevState.tick)) {
+              nextState = waterSpot(nextState, plotIndex, spotIndex);
             }
           });
 
-          return nextState;
+          return {
+            ...nextState,
+            selected: { plotIndex, spotIndex: fallbackSpotIndex },
+          };
         })}
         onPlant={(seedItemId) => setGameState((prevState) => {
           const { selectedPlotIndex: plotIndex, selectedSpotIndex: spotIndex } = getSelectedIndexes(prevState);

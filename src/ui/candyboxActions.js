@@ -64,10 +64,17 @@ export function getAvailableActions(gameState) {
     })),
     {
       id: 'harvest-ready',
-      label: 'Harvest ready crops',
+      label: 'Harvest ready on active plot',
       isVisible: automationUnlocked,
       isEnabled: automationUnlocked,
-      execute: handlers.onHarvestReady,
+      execute: handlers.onHarvestReadyOnActivePlot,
+    },
+    {
+      id: 'water-dry-planted',
+      label: 'Water dry planted on active plot',
+      isVisible: automationUnlocked,
+      isEnabled: automationUnlocked,
+      execute: handlers.onWaterDryPlantedOnActivePlot,
     },
     ...sellableItems.map((item) => ({
       id: `sell-${item.itemId}`,
