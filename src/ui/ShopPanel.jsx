@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CROPS, getZoneNetProduction, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, ZONE_DEFINITIONS } from '../game/constants';
+import { getProgressionEffects, isFeatureUnlocked } from '../game/progression';
 
 function buildSellSections(inventory, marketPrices = {}) {
   const cropIds = new Set(Object.keys(CROPS));
@@ -55,6 +56,7 @@ export default function ShopPanel({
   onAcceptContract,
   onSetAutoSellPolicy,
   onSetAutoSellItemThreshold,
+  progression,
 }) {
   const [activeTab, setActiveTab] = useState('shop');
   const [isOpen, setIsOpen] = useState(true);
@@ -68,9 +70,10 @@ export default function ShopPanel({
     () => Object.entries(SHOP_SEEDS).filter(([, item]) => showUnaffordable || money >= item.buyPrice),
     [money, showUnaffordable]
   );
+  const stateProgression = progression ?? null;
   const visibleBuildingEntries = useMemo(
-    () => Object.entries(SHOP_BUILDINGS).filter(([, building]) => showUnaffordable || money >= building.buyPrice),
-    [money, showUnaffordable]
+    () => Object.entries(SHOP_BUILDINGS).filter(([buildingId, building]) => (showUnaffordable || money >= building.buyPrice) && isFeatureUnlocked({ progression: stateProgression }, 'buildings', buildingId)),
+    [money, showUnaffordable, stateProgression]
   );
   const canAffordPlotUnlock = money >= unlockCost;
   const showPlotUnlock = unlockablePlots.length > 0 && (showUnaffordable || canAffordPlotUnlock);
@@ -81,6 +84,7 @@ export default function ShopPanel({
   const selectedNetProduction = selectedPlot
     ? getZoneNetProduction(selectedPlot.zoneType, selectedPlot.level, selectedPolicy)
     : null;
+  const marketIntelLevel = getProgressionEffects(stateProgression).marketIntelLevel;
 
   useEffect(() => {
     if (unlockablePlots.length === 0) {
@@ -264,9 +268,11 @@ export default function ShopPanel({
                         value={selectedZoneToUnlock}
                         onChange={(event) => setSelectedZoneToUnlock(event.target.value)}
                       >
-                        {Object.entries(ZONE_DEFINITIONS).map(([zoneType, definition]) => (
-                          <option key={zoneType} value={zoneType}>{definition.name}</option>
-                        ))}
+                        {Object.entries(ZONE_DEFINITIONS)
+                          .filter(([zoneType]) => isFeatureUnlocked({ progression: stateProgression }, 'zones', zoneType))
+                          .map(([zoneType, definition]) => (
+                            <option key={zoneType} value={zoneType}>{definition.name}</option>
+                          ))}
                       </select>
                     </label>
                     <button
@@ -324,11 +330,11 @@ export default function ShopPanel({
               <div className="stack-sm shop-section-body">
                 {Object.entries(SELLABLE_ITEMS).map(([itemId, item]) => {
                   const price = marketPrices?.[itemId] ?? item.baselinePrice;
-                  const trend = marketTrends?.[itemId] ?? 0;
+                  const trend = marketIntelLevel > 0 ? (marketTrends?.[itemId] ?? 0) : 0;
                   const trendPrefix = trend > 0 ? '+' : '';
                   return (
                     <p key={itemId} className="muted">
-                      {item.name}: ${price} ({trendPrefix}{trend}%)
+                      {item.name}: ${price} {marketIntelLevel > 0 ? `(${trendPrefix}${trend}%)` : '(research logistics for trends)'}
                     </p>
                   );
                 })}

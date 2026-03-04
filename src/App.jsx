@@ -6,11 +6,13 @@ import ShopPanel from './ui/ShopPanel';
 import TileInspector from './ui/TileInspector';
 import CoopModal from './ui/CoopModal';
 import BackpackBar from './ui/BackpackBar';
+import ProgressionPanel from './ui/ProgressionPanel';
 import { createNewGame } from './game/createNewGame';
 import { createInitialBuildingChainState } from './game/constants';
 import { createInitialWorkers } from './game/workers';
 import { loadGame, saveGame } from './game/save';
 import { advanceTick } from './game/tick';
+import { clearProgressionNotifications, getProgressionEffects } from './game/progression';
 import {
   breedChicken,
   getUnlockPlotCostForState,
@@ -26,6 +28,7 @@ import {
   acceptContractOffer,
   setAutoSellPolicy,
   setAutoSellItemThreshold,
+  researchTechNode,
 } from './game/actions';
 
 function withSelectedTool(gameState) {
@@ -56,6 +59,7 @@ function withSelectedTool(gameState) {
     contracts: nextState.contracts ?? { reputation: 1, offers: [], active: [], completed: [], failed: [] },
     autoSellPolicy: nextState.autoSellPolicy ?? { enabled: false, defaultMinStock: 0, minStockByItem: {} },
     buildingChain: { ...createInitialBuildingChainState(), ...(nextState.buildingChain ?? {}) },
+    progression: nextState.progression ?? { researchPoints: 0, researchedTechs: [], milestones: { positiveBalanceDays: 0, completed: [] }, notifications: [] },
   };
 }
 
@@ -176,6 +180,7 @@ export default function App() {
   const selectedTile = selectedPlotIndex === null ? null : gameState.tiles[selectedPlotIndex];
   const isSelectedTileUnlocked = selectedPlotIndex !== null && gameState.unlockedTiles[selectedPlotIndex];
   const selectedCoop = selectedTile?.type === 'coop' ? selectedTile : null;
+  const progressionEffects = getProgressionEffects(gameState.progression);
 
 
   const updateSelectedPlot = (updater) => {
@@ -238,6 +243,9 @@ export default function App() {
         onLoadGame={handleLoadGame}
         onBackToFront={handleBackToFront}
         throughputStatus={gameState.economyStatus?.throughputStatus ?? []}
+        researchPoints={gameState.progression?.researchPoints ?? 0}
+        progressionAlerts={gameState.progression?.notifications?.length ?? 0}
+        marketIntelLevel={progressionEffects.marketIntelLevel}
       />
       <main className="main-layout game-layout">
         <AsciiBoard
@@ -295,6 +303,11 @@ export default function App() {
               })
             }
           />
+          <ProgressionPanel
+            state={gameState}
+            onResearchTech={(techId) => setGameState((prevState) => researchTechNode(prevState, techId))}
+            onClearNotifications={() => setGameState((prevState) => clearProgressionNotifications(prevState))}
+          />
           <ShopPanel
             selectedPlotIndex={selectedPlotIndex}
             selectedPlot={selectedPlot}
@@ -327,6 +340,7 @@ export default function App() {
             onAcceptContract={(contractId) => setGameState((prevState) => acceptContractOffer(prevState, contractId))}
             onSetAutoSellPolicy={(changes) => setGameState((prevState) => setAutoSellPolicy(prevState, changes))}
             onSetAutoSellItemThreshold={(itemId, minStock) => setGameState((prevState) => setAutoSellItemThreshold(prevState, itemId, minStock))}
+            progression={gameState.progression}
           />
         </aside>
       </main>
