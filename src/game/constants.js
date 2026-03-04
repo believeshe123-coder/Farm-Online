@@ -81,6 +81,154 @@ export const CROPS = {
   },
 };
 
+export const ZONE_DEFINITIONS = {
+  field: {
+    name: 'Field',
+    cycleTimeTicks: 4,
+    workerRequirement: 1,
+    defaultPolicy: 'balanced',
+    policies: {
+      balanced: { label: 'Balanced', inputs: { seeds: 1, water: 1 }, outputs: { wheat: 2, seeds: 1 } },
+      grain_focus: { label: 'Grain Focus', inputs: { seeds: 1, water: 2 }, outputs: { wheat: 3 } },
+    },
+    upgrades: [
+      { level: 2, cycleTimeMultiplier: 0.9, outputMultiplier: 1.2, workerDelta: 0 },
+      { level: 3, cycleTimeMultiplier: 0.8, outputMultiplier: 1.5, workerDelta: 1 },
+    ],
+  },
+  forest: {
+    name: 'Forest',
+    cycleTimeTicks: 5,
+    workerRequirement: 1,
+    defaultPolicy: 'timber',
+    policies: {
+      timber: { label: 'Timber', inputs: { energy: 1 }, outputs: { wood: 3 } },
+      forage: { label: 'Forage', inputs: { energy: 1 }, outputs: { wood: 1, seeds: 1 } },
+    },
+    upgrades: [
+      { level: 2, cycleTimeMultiplier: 0.9, outputMultiplier: 1.15, workerDelta: 0 },
+      { level: 3, cycleTimeMultiplier: 0.75, outputMultiplier: 1.35, workerDelta: 1 },
+    ],
+  },
+  quarry: {
+    name: 'Quarry',
+    cycleTimeTicks: 6,
+    workerRequirement: 2,
+    defaultPolicy: 'stone_cut',
+    policies: {
+      stone_cut: { label: 'Stone Cut', inputs: { energy: 2 }, outputs: { rock: 3 } },
+      salvage: { label: 'Salvage', inputs: { energy: 1 }, outputs: { rock: 2, seeds: 1 } },
+    },
+    upgrades: [
+      { level: 2, cycleTimeMultiplier: 0.9, outputMultiplier: 1.2, workerDelta: 0 },
+      { level: 3, cycleTimeMultiplier: 0.75, outputMultiplier: 1.4, workerDelta: 1 },
+    ],
+  },
+  pasture: {
+    name: 'Pasture',
+    cycleTimeTicks: 5,
+    workerRequirement: 1,
+    defaultPolicy: 'eggs',
+    policies: {
+      eggs: { label: 'Eggs', inputs: { feed: 1 }, outputs: { egg: 2 } },
+      mixed_feed: { label: 'Compost Feed', inputs: { feed: 1 }, outputs: { egg: 1, fertilizer: 1 } },
+    },
+    upgrades: [
+      { level: 2, cycleTimeMultiplier: 0.9, outputMultiplier: 1.2, workerDelta: 0 },
+      { level: 3, cycleTimeMultiplier: 0.75, outputMultiplier: 1.4, workerDelta: 1 },
+    ],
+  },
+  greenhouse: {
+    name: 'Greenhouse',
+    cycleTimeTicks: 4,
+    workerRequirement: 2,
+    defaultPolicy: 'vegetables',
+    policies: {
+      vegetables: { label: 'Vegetables', inputs: { water: 2, energy: 1, seeds: 1 }, outputs: { lettuce: 2, carrot: 1 } },
+      herbs: { label: 'Herbs', inputs: { water: 1, energy: 1, seeds: 1 }, outputs: { yarrow: 1, seeds: 1 } },
+    },
+    upgrades: [
+      { level: 2, cycleTimeMultiplier: 0.85, outputMultiplier: 1.2, workerDelta: 0 },
+      { level: 3, cycleTimeMultiplier: 0.7, outputMultiplier: 1.5, workerDelta: 1 },
+    ],
+  },
+  seed_lab: {
+    name: 'Seed Lab',
+    cycleTimeTicks: 7,
+    workerRequirement: 2,
+    defaultPolicy: 'seed_refining',
+    policies: {
+      seed_refining: { label: 'Seed Refining', inputs: { fertilizer: 1, energy: 1 }, outputs: { seeds: 4 } },
+      hybridizing: { label: 'Hybridizing', inputs: { seeds: 2, energy: 1 }, outputs: { seeds: 3, fireflower_seed: 1 } },
+    },
+    upgrades: [
+      { level: 2, cycleTimeMultiplier: 0.9, outputMultiplier: 1.2, workerDelta: 0 },
+      { level: 3, cycleTimeMultiplier: 0.8, outputMultiplier: 1.45, workerDelta: 1 },
+    ],
+  },
+};
+
+export const ZONE_TYPES = new Set(Object.keys(ZONE_DEFINITIONS));
+
+function getLevelModifiers(zoneDefinition, level = 1) {
+  const levelNumber = Math.max(1, Number(level) || 1);
+  const applicableUpgrades = (zoneDefinition?.upgrades ?? []).filter((upgrade) => levelNumber >= upgrade.level);
+
+  return applicableUpgrades.reduce((modifiers, upgrade) => ({
+    cycleTimeMultiplier: modifiers.cycleTimeMultiplier * (upgrade.cycleTimeMultiplier ?? 1),
+    outputMultiplier: modifiers.outputMultiplier * (upgrade.outputMultiplier ?? 1),
+    workerDelta: modifiers.workerDelta + (upgrade.workerDelta ?? 0),
+  }), {
+    cycleTimeMultiplier: 1,
+    outputMultiplier: 1,
+    workerDelta: 0,
+  });
+}
+
+export function getZoneCycleConfig(zoneType = 'field', level = 1, policyId) {
+  const definition = ZONE_DEFINITIONS[zoneType] ?? ZONE_DEFINITIONS.field;
+  const policy = definition.policies[policyId] ?? definition.policies[definition.defaultPolicy];
+  const modifiers = getLevelModifiers(definition, level);
+
+  return {
+    zoneType,
+    zoneName: definition.name,
+    level: Math.max(1, Number(level) || 1),
+    policyId: definition.policies[policyId] ? policyId : definition.defaultPolicy,
+    cycleTimeTicks: Math.max(1, Math.round(definition.cycleTimeTicks * modifiers.cycleTimeMultiplier)),
+    workerRequirement: Math.max(1, definition.workerRequirement + modifiers.workerDelta),
+    inputs: Object.fromEntries(
+      Object.entries(policy.inputs ?? {}).map(([resourceId, amount]) => [resourceId, Math.max(0, Math.round(amount))])
+    ),
+    outputs: Object.fromEntries(
+      Object.entries(policy.outputs ?? {}).map(([resourceId, amount]) => [resourceId, Math.max(0, Math.round(amount * modifiers.outputMultiplier))])
+    ),
+    upgrades: definition.upgrades ?? [],
+  };
+}
+
+export function getZoneNetProduction(zoneType = 'field', level = 1, policyId) {
+  const config = getZoneCycleConfig(zoneType, level, policyId);
+  const cycleTime = config.cycleTimeTicks;
+  const perTick = {};
+
+  [...Object.keys(config.outputs), ...Object.keys(config.inputs)].forEach((resourceId) => {
+    const output = config.outputs[resourceId] ?? 0;
+    const input = config.inputs[resourceId] ?? 0;
+    perTick[resourceId] = Number(((output - input) / cycleTime).toFixed(2));
+  });
+
+  const perDay = Object.fromEntries(
+    Object.entries(perTick).map(([resourceId, amount]) => [resourceId, Number((amount * 24).toFixed(2))])
+  );
+
+  return {
+    ...config,
+    netPerTick: perTick,
+    netPerDay: perDay,
+  };
+}
+
 export const WATERING_DURATION_TICKS = 8;
 
 export const SHOP_SEEDS = Object.fromEntries(

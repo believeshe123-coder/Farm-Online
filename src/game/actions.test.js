@@ -433,56 +433,50 @@ test('unlock plot requires choosing an adjacent locked tile', () => {
   assert.equal(state.unlockedTiles[7], true);
 });
 
-test('unlocking a new plot generates fresh randomized debris spots', () => {
+test('unlocking a new plot sets default zone state', () => {
   const targetPlot = 7;
   const baseState = { ...createNewGame(), money: 1000 };
-  const initialDebris = baseState.plots[targetPlot].spots.map((spot) => spot.debris);
-
-  const unlockedState = withMockedRandom(0.3, () => unlockPlot(baseState, targetPlot));
-  const unlockedDebris = unlockedState.plots[targetPlot].spots.map((spot) => spot.debris);
+  const unlockedState = unlockPlot(baseState, targetPlot);
 
   assert.equal(unlockedState.unlockedTiles[targetPlot], true);
-  assert.ok(unlockedDebris.every((debris) => debris === 'seeds'));
-  assert.notDeepEqual(unlockedDebris, initialDebris);
+  assert.equal(unlockedState.plots[targetPlot].zoneType, 'field');
+  assert.equal(unlockedState.plots[targetPlot].level, 1);
+  assert.equal(unlockedState.plots[targetPlot].assignedWorkers, 1);
 });
 
-test('unlocking can assign a plot resource profile', () => {
+test('unlocking can assign a plot zone type', () => {
   const targetPlot = 7;
   const baseState = { ...createNewGame(), money: 1000 };
   const unlockedState = unlockPlot(baseState, targetPlot, 'forest');
 
   assert.equal(unlockedState.unlockedTiles[targetPlot], true);
-  assert.equal(unlockedState.plots[targetPlot].resourceProfile, 'forest');
+  assert.equal(unlockedState.plots[targetPlot].zoneType, 'forest');
 });
 
-test('specialized plots auto-spawn weighted debris every 5 ticks', () => {
+test('zone cycles produce deterministic outputs', () => {
   const targetPlot = 7;
-  let state = { ...createNewGame(), money: 1000, tick: 4 };
-  state = unlockPlot(state, targetPlot, 'rock');
+  let state = { ...createNewGame(), money: 1000, tick: 3 };
+  state = unlockPlot(state, targetPlot, 'field');
 
   state = {
     ...state,
-    plots: state.plots.map((plot, index) => {
-      if (index !== targetPlot) {
-        return plot;
-      }
-
-      return {
-        ...plot,
-        spots: plot.spots.map((spot) => ({
-          ...spot,
-          soil: 'raw',
-          crop: null,
-          debris: null,
-        })),
-      };
-    }),
+    plots: state.plots.map((plot, index) => (index === targetPlot
+      ? { ...plot, productionPolicy: 'balanced', assignedWorkers: 2, spots: plot.spots.map((spot) => ({ ...spot, debris: null })) }
+      : { ...plot, assignedWorkers: 0 })),
+    inventory: { ...state.inventory, wheat: 0 },
+    resourcePools: {
+      ...state.resourcePools,
+      seeds: { ...state.resourcePools.seeds, amount: 3 },
+      water: { ...state.resourcePools.water, amount: 5 },
+    },
   };
 
-  const nextState = withMockedRandomSequence([0, 0.7], () => advanceTick(state));
+  const nextState = advanceTick(state);
 
-  assert.equal(nextState.tick, 5);
-  assert.equal(nextState.plots[targetPlot].spots[0].debris, 'rock');
+  assert.equal(nextState.tick, 4);
+  assert.equal(nextState.inventory.wheat, 2);
+  assert.equal(nextState.resourcePools.seeds.amount, 3);
+  assert.equal(nextState.resourcePools.water.amount, 4);
 });
 
 

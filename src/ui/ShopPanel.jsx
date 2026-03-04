@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CROPS, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS } from '../game/constants';
+import { CROPS, getZoneNetProduction, SELLABLE_ITEMS, SHOP_BUILDINGS, SHOP_SEEDS, ZONE_DEFINITIONS } from '../game/constants';
 
 function buildSellSections(inventory) {
   const cropIds = new Set(Object.keys(CROPS));
@@ -33,6 +33,7 @@ function buildSellSections(inventory) {
 
 export default function ShopPanel({
   selectedPlotIndex,
+  selectedPlot,
   money,
   inventory,
   onBuild,
@@ -44,13 +45,16 @@ export default function ShopPanel({
   onUnlockPlot,
   onBuySeed,
   onSellItem,
+  onSetPlotZone,
+  onSetPlotPolicy,
+  onSetPlotWorkers,
 }) {
   const [activeTab, setActiveTab] = useState('shop');
   const [isOpen, setIsOpen] = useState(true);
   const [showUnaffordable, setShowUnaffordable] = useState(false);
   const canBuild = selectedPlotIndex !== null;
   const [selectedPlotToUnlock, setSelectedPlotToUnlock] = useState('');
-  const [selectedPlotProfile, setSelectedPlotProfile] = useState('mixed');
+  const [selectedZoneToUnlock, setSelectedZoneToUnlock] = useState('field');
   const sellSections = useMemo(() => buildSellSections(inventory), [inventory]);
   const visibleSeedEntries = useMemo(
     () => Object.entries(SHOP_SEEDS).filter(([, item]) => showUnaffordable || money >= item.buyPrice),
@@ -62,6 +66,13 @@ export default function ShopPanel({
   );
   const canAffordPlotUnlock = money >= unlockCost;
   const showPlotUnlock = unlockablePlots.length > 0 && (showUnaffordable || canAffordPlotUnlock);
+  const selectedZoneDefinition = selectedPlot ? ZONE_DEFINITIONS[selectedPlot.zoneType] : null;
+  const selectedPolicy = selectedZoneDefinition?.policies?.[selectedPlot?.productionPolicy]
+    ? selectedPlot.productionPolicy
+    : selectedZoneDefinition?.defaultPolicy;
+  const selectedNetProduction = selectedPlot
+    ? getZoneNetProduction(selectedPlot.zoneType, selectedPlot.level, selectedPolicy)
+    : null;
 
   useEffect(() => {
     if (unlockablePlots.length === 0) {
@@ -132,6 +143,52 @@ export default function ShopPanel({
               Show unaffordable (debug)
             </label>
 
+            {selectedPlotIndex !== null && selectedPlot && (
+              <details open>
+                <summary>Selected plot zone</summary>
+                <div className="stack-sm shop-section-body">
+                  <p className="muted">Plot {selectedPlotIndex + 1}</p>
+                  <label>
+                    Zone type
+                    <select value={selectedPlot.zoneType} onChange={(event) => onSetPlotZone(event.target.value)}>
+                      {Object.entries(ZONE_DEFINITIONS).map(([zoneType, definition]) => (
+                        <option key={zoneType} value={zoneType}>{definition.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedZoneDefinition && (
+                    <label>
+                      Recipe / policy
+                      <select
+                        value={selectedPolicy}
+                        onChange={(event) => onSetPlotPolicy(event.target.value)}
+                      >
+                        {Object.entries(selectedZoneDefinition.policies).map(([policyId, policy]) => (
+                          <option key={policyId} value={policyId}>{policy.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <label>
+                    Assigned workers
+                    <input
+                      type="number"
+                      min="0"
+                      max="12"
+                      value={selectedPlot.assignedWorkers ?? 0}
+                      onChange={(event) => onSetPlotWorkers(Number(event.target.value))}
+                    />
+                  </label>
+                  {selectedNetProduction && (
+                    <>
+                      <p className="muted">Net per tick: {Object.entries(selectedNetProduction.netPerTick).map(([id, amount]) => `${id}:${amount}`).join(', ') || '0'}</p>
+                      <p className="muted">Net per day: {Object.entries(selectedNetProduction.netPerDay).map(([id, amount]) => `${id}:${amount}`).join(', ') || '0'}</p>
+                    </>
+                  )}
+                </div>
+              </details>
+            )}
+
             <details open>
               <summary>Seeds</summary>
               <div className="stack-sm shop-section-body">
@@ -185,21 +242,20 @@ export default function ShopPanel({
                 {showPlotUnlock && (
                   <>
                     <label>
-                      Plot type
+                      Zone type
                       <select
-                        value={selectedPlotProfile}
-                        onChange={(event) => setSelectedPlotProfile(event.target.value)}
+                        value={selectedZoneToUnlock}
+                        onChange={(event) => setSelectedZoneToUnlock(event.target.value)}
                       >
-                        <option value="mixed">Mixed</option>
-                        <option value="forest">Forest</option>
-                        <option value="rock">Rock</option>
-                        <option value="seeds">Seed</option>
+                        {Object.entries(ZONE_DEFINITIONS).map(([zoneType, definition]) => (
+                          <option key={zoneType} value={zoneType}>{definition.name}</option>
+                        ))}
                       </select>
                     </label>
                     <button
                       type="button"
                       disabled={!canUnlockPlot || selectedPlotToUnlock === ''}
-                      onClick={() => onUnlockPlot(Number(selectedPlotToUnlock), selectedPlotProfile)}
+                      onClick={() => onUnlockPlot(Number(selectedPlotToUnlock), selectedZoneToUnlock)}
                     >
                       {unlockedPlotCount >= totalPlots ? 'Unlock Plot (All plots unlocked)' : `Unlock Plot - $${unlockCost}`}
                     </button>

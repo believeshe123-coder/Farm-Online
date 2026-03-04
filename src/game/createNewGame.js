@@ -26,9 +26,12 @@ export function createSpot() {
   };
 }
 
-export function createPlot(resourceProfile = 'mixed') {
+export function createPlot(zoneType = 'field') {
   return {
-    resourceProfile,
+    zoneType,
+    level: 1,
+    assignedWorkers: 1,
+    productionPolicy: null,
     spots: Array.from({ length: 25 }, createSpot),
   };
 }
