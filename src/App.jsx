@@ -18,6 +18,32 @@ import {
   isCropHydratedAtTick,
 } from './game/actions';
 
+const MAX_EVENT_LOG_LINES = 100;
+
+function toLogLine(tick, message) {
+  return `Tick ${tick}: ${message}`;
+}
+
+function toProgressionLogLine(notification) {
+  if (!notification) {
+    return '';
+  }
+
+  if (typeof notification === 'string') {
+    return notification;
+  }
+
+  if (typeof notification.message === 'string' && notification.message.trim()) {
+    return notification.message;
+  }
+
+  if (typeof notification.title === 'string' && notification.title.trim()) {
+    return notification.title;
+  }
+
+  return String(notification);
+}
+
 function withSelectedTool(gameState) {
   const hotbarItems = Array.isArray(gameState.hotbarItems) ? gameState.hotbarItems : [];
   const isToolValid = Boolean(
@@ -93,6 +119,15 @@ export default function App() {
   const [isPaused, setIsPaused] = useState(false);
   const [frontMessage, setFrontMessage] = useState('');
   const [activeSpotGroup, setActiveSpotGroup] = useState('all');
+  const [eventLog, setEventLog] = useState([]);
+
+  const appendLogEntries = (entries) => {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return;
+    }
+
+    setEventLog((prevLog) => [...prevLog, ...entries].slice(-MAX_EVENT_LOG_LINES));
+  };
 
   useEffect(() => {
     saveGame(gameState);
@@ -104,7 +139,42 @@ export default function App() {
     }
 
     const intervalId = setInterval(() => {
-      setGameState((prevState) => advanceTick(prevState));
+      setGameState((prevState) => {
+        const nextState = advanceTick(prevState);
+        const tickEntries = [];
+
+        const prevNotifications = prevState.progression?.notifications ?? [];
+        const nextNotifications = nextState.progression?.notifications ?? [];
+        if (nextNotifications.length > prevNotifications.length) {
+          nextNotifications.slice(prevNotifications.length).forEach((notification) => {
+            const message = toProgressionLogLine(notification);
+            if (message) {
+              tickEntries.push(toLogLine(nextState.tick, `Progression: ${message}`));
+            }
+          });
+        }
+
+        const prevOffers = prevState.contracts?.offers?.length ?? 0;
+        const nextOffers = nextState.contracts?.offers?.length ?? 0;
+        if (nextOffers > prevOffers) {
+          tickEntries.push(toLogLine(nextState.tick, `New contracts available (${nextOffers}).`));
+        }
+
+        const prevCompletedContracts = prevState.contracts?.completed?.length ?? 0;
+        const nextCompletedContracts = nextState.contracts?.completed?.length ?? 0;
+        if (nextCompletedContracts > prevCompletedContracts) {
+          tickEntries.push(toLogLine(nextState.tick, `Completed contracts: +${nextCompletedContracts - prevCompletedContracts}.`));
+        }
+
+        const prevResearch = prevState.progression?.researchedTechs?.length ?? 0;
+        const nextResearch = nextState.progression?.researchedTechs?.length ?? 0;
+        if (nextResearch > prevResearch) {
+          tickEntries.push(toLogLine(nextState.tick, `Completed research: +${nextResearch - prevResearch}.`));
+        }
+
+        appendLogEntries(tickEntries);
+        return nextState;
+      });
     }, 1000);
 
     return () => clearInterval(intervalId);
@@ -112,6 +182,7 @@ export default function App() {
 
   const handleStartGame = () => {
     setGameState(withSelectedTool(createNewGame()));
+    setEventLog([]);
     setIsPaused(false);
     setFrontMessage('');
     setView('game');
@@ -121,6 +192,7 @@ export default function App() {
     const savedState = loadGame();
     if (savedState) {
       setGameState(withSelectedTool(savedState));
+      setEventLog([]);
       setIsPaused(false);
       setFrontMessage('');
       setView('game');
@@ -164,9 +236,10 @@ export default function App() {
   const canUnlockSelected = unlockablePlots.includes(selectedPlotIndex);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell candybox-shell">
       <CandyboxView
         state={gameState}
+        eventLog={eventLog}
         selectedPlotIndex={selectedPlotIndex}
         selectedSpotIndex={selectedSpotIndex}
         selectedSpot={selectedSpot}
@@ -227,7 +300,11 @@ export default function App() {
         })}
         onHarvestSelected={() => setGameState((prevState) => {
           const { selectedPlotIndex: plotIndex, selectedSpotIndex: spotIndex } = getSelectedIndexes(prevState);
-          return harvestSpot(prevState, plotIndex, spotIndex);
+          const nextState = harvestSpot(prevState, plotIndex, spotIndex);
+          if (nextState !== prevState) {
+            appendLogEntries([toLogLine(prevState.tick, `Harvest action on Plot ${plotIndex + 1}, Spot ${spotIndex + 1}.`)]);
+          }
+          return nextState;
         })}
         onHarvestReadyOnActivePlot={() => setGameState((prevState) => {
           const { selectedPlotIndex: plotIndex } = getSelectedIndexes(prevState);
@@ -236,6 +313,10 @@ export default function App() {
 
           for (let spotIndex = 0; spotIndex < spotCount; spotIndex += 1) {
             nextState = harvestSpot(nextState, plotIndex, spotIndex);
+          }
+
+          if (nextState !== prevState) {
+            appendLogEntries([toLogLine(prevState.tick, `Harvested ready crops on Plot ${plotIndex + 1}.`)]);
           }
 
           return nextState;
@@ -263,12 +344,26 @@ export default function App() {
         onPlant={(seedItemId) => setGameState((prevState) => {
           const { selectedPlotIndex: plotIndex, selectedSpotIndex: spotIndex } = getSelectedIndexes(prevState);
           const withSeedSelected = { ...prevState, selectedTool: { kind: 'item', id: seedItemId } };
-          return onSpotClick(withSeedSelected, plotIndex, spotIndex);
+          const nextState = onSpotClick(withSeedSelected, plotIndex, spotIndex);
+          if (nextState !== prevState) {
+            appendLogEntries([toLogLine(prevState.tick, `Planted ${seedItemId} on Plot ${plotIndex + 1}, Spot ${spotIndex + 1}.`)]);
+          }
+          return nextState;
         })}
-        onSellOne={(itemId) => setGameState((prevState) => sellItem(prevState, itemId, 1))}
+        onSellOne={(itemId) => setGameState((prevState) => {
+          const nextState = sellItem(prevState, itemId, 1);
+          if (nextState !== prevState) {
+            appendLogEntries([toLogLine(prevState.tick, `Sold 1 ${itemId}.`)]);
+          }
+          return nextState;
+        })}
         onUnlockSelected={() => setGameState((prevState) => {
           const { selectedPlotIndex: plotIndex } = getSelectedIndexes(prevState);
-          return unlockPlot(prevState, plotIndex);
+          const nextState = unlockPlot(prevState, plotIndex);
+          if (nextState !== prevState) {
+            appendLogEntries([toLogLine(prevState.tick, `Unlocked Plot ${plotIndex + 1}.`)]);
+          }
+          return nextState;
         })}
       />
     </div>
