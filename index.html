@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Farm Online</title>
     <style>
-      body { font-family: Georgia, serif; margin: 0; background: #f8f5ea; color: #23201a; }
-      .page { max-width: 1200px; margin: 1rem auto; padding: 0 1rem 2rem; line-height: 1.4; }
+      body { font-family: Georgia, serif; margin: 0; background: #f8f5ea; color: #23201a; overflow: hidden; }
+      .page { max-width: 1200px; margin: 0.5rem auto; padding: 0 0.8rem 0.8rem; line-height: 1.3; }
       .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 1rem; align-items: start; }
       .chronicles-column { background: #f3ebd8; border: 1px solid #d2c5a3; padding: 0.75rem; }
       .chronicles-column h3 { margin: 0.25rem 0 0.5rem; }
@@ -30,14 +30,43 @@
       .traveler-card { border: 1px solid #c7b28b; background: #f8efd9; padding: 0.6rem; }
       .traveler-card p { margin: 0 0 0.35rem; }
 
+
+      .main-page { height: calc(100vh - 0.6rem); overflow: hidden; }
+      .main-page .layout { height: 100%; gap: 0.75rem; }
+      .main-page .chronicles-column { height: calc(100% - 1.5rem); overflow: hidden; font-size: 0.9rem; }
+      .main-page .chronicles-column ul { margin: 0.2rem 0 0.5rem 1rem; }
+      .main-page .options-column { font-size: 0.93rem; }
+      .main-page h1 { margin: 0.15rem 0 0.25rem; font-size: 1.45rem; }
+      .main-page h3 { margin: 0.35rem 0 0.25rem; font-size: 1rem; }
+      .main-page .muted { margin: 0 0 0.25rem; font-size: 0.85rem; }
+      .main-page .stats { padding: 0.55rem; }
+      .main-page .stats-grid { gap: 0.45rem 1rem; font-size: 0.9rem; }
+      .main-page .stat-group h4 { margin: 0 0 0.2rem; font-size: 0.92rem; }
+      .main-page section { margin-bottom: 0.35rem; }
+      .main-page .actions { gap: 6px; }
+      .main-page .action-btn { min-width: 135px; padding: 0.28rem 0.45rem; font-size: 0.82rem; }
+      .main-page input, .main-page select { padding: 0.25rem; font-size: 0.82rem; }
       .advancement-page { background: #ebe7df; border: 1px solid #c6c0b4; padding: 0.9rem; }
+      .adv-legend { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.55rem 0 0.8rem; }
+      .adv-legend-item { display: inline-flex; }
+      .adv-swatch { display: inline-flex; align-items: center; justify-content: center; min-width: 90px; padding: 0.15rem 0.45rem; font-size: 0.82rem; border-radius: 3px; }
       .advancement-tree { display: grid; gap: 0.9rem; }
       .adv-lane { background: #d8d4cd; border: 1px solid #aca79a; padding: 0.7rem; }
       .adv-lane h3 { margin: 0 0 0.45rem; color: #2f2d2a; }
       .adv-flow { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
       .adv-node-wrap { display: flex; align-items: center; gap: 0.35rem; }
-      .adv-node { background: #c9c5be; border: 1px solid #8d8a83; color: #1f1e1b; padding: 0.3rem 0.55rem; font-weight: 600; }
+      .adv-node { position: relative; background: #c9c5be; border: 1px solid #8d8a83; color: #1f1e1b; padding: 0.35rem 0.75rem; font-weight: 600; font-family: inherit; cursor: pointer; }
+      .adv-node-done { background: #9f998f; border: 1px solid #59554f; color: #171612; }
+      .adv-node-available { border: 2px solid #6a675f; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25) inset; }
+      .adv-node-locked { opacity: 0.45; border: 1px dashed #6f6b63; }
+      .adv-node-next { outline: 3px solid #c9a94b; outline-offset: 1px; }
+      .adv-corner-check { position: absolute; top: -0.35rem; right: -0.35rem; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: #2f5f30; color: #f2f7ee; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #173417; }
+      .adv-next-tag { position: absolute; left: 50%; transform: translateX(-50%); bottom: -1rem; background: #c9a94b; color: #2d2411; border: 1px solid #856b2c; font-size: 0.65rem; padding: 0 0.3rem; border-radius: 2px; }
       .adv-link { color: #3f3d38; font-weight: 700; }
+      .adv-details { margin-top: 1.4rem; background: #e1dbcf; border: 1px solid #aea592; padding: 0.65rem 0.75rem; }
+      .adv-details h3 { margin: 0 0 0.35rem; }
+      .adv-details p { margin: 0.4rem 0 0.2rem; }
+      .adv-details ul { margin: 0.2rem 0 0.4rem 1.2rem; }
       @media (max-width: 980px) {
         .layout { grid-template-columns: 1fr; }
       }
