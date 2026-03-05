@@ -17,11 +17,18 @@
       .stat-row { display: flex; justify-content: space-between; gap: 0.9rem; }
       .label { color: #3a3221; }
       .label.key { font-weight: 700; color: #2e271a; }
+      .stat-value.critical { font-weight: 800; color: #9d1d00; }
       .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      .actions.compact .action-btn { min-width: 120px; }
       .action-btn { min-width: 180px; padding: 0.42rem 0.65rem; }
       .action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+      input, select { padding: 0.35rem; }
       .muted { color: #5e5643; font-size: 0.93rem; margin: 0 0 0.45rem; }
       .game-over { color: #a40000; font-weight: bold; }
+      .traveler-panel { margin-top: 1rem; border: 1px solid #ccb892; background: #f2e6cc; padding: 0.8rem; }
+      .traveler-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+      .traveler-card { border: 1px solid #c7b28b; background: #f8efd9; padding: 0.6rem; }
+      .traveler-card p { margin: 0 0 0.35rem; }
       @media (max-width: 980px) {
         .layout { grid-template-columns: 1fr; }
       }
