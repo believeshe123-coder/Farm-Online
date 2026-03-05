@@ -1334,7 +1334,7 @@ function render() {
 
             <section class="stats">
               <div class="stats-grid">
-                <div class="stat-group">
+                <div class="stat-group stat-group-status">
                   <h4>Status</h4>
                   <div class="stat-row"><span class="label key">Energy</span><span class="stat-value ${energyCritical ? 'critical' : ''}">${state.energy}/${state.energyMax}</span></div>
                   <div class="stat-row"><span class="label key">Hours Left</span><span class="stat-value ${hoursCritical ? 'critical' : ''}">${hoursRemaining}/${state.hoursPerDay}</span></div>
@@ -1342,7 +1342,7 @@ function render() {
                   <div class="stat-row"><span class="label key">Health</span><span>${state.health}/10</span></div>
                   <div class="stat-row"><span class="label">Warmth</span><span>${state.warmth}/10</span></div>
                 </div>
-                <div class="stat-group">
+                <div class="stat-group stat-group-supplies">
                   <h4>Supplies</h4>
                   <div class="stat-row"><span class="label key">Food</span><span>${state.food}</span></div>
                   <div class="stat-row"><span class="label">Sticks</span><span>${state.sticks}</span></div>
@@ -1351,9 +1351,6 @@ function render() {
                   <div class="stat-row"><span class="label">Grass</span><span>${state.grass}</span></div>
                   <div class="stat-row"><span class="label">Rope</span><span>${state.rope}</span></div>
                   <div class="stat-row"><span class="label">Wood</span><span>${state.wood}</span></div>
-                  <div class="stat-row"><span class="label">Sticks</span><span>${state.sticks}</span></div>
-                  <div class="stat-row"><span class="label">Stones</span><span>${state.stones}</span></div>
-                  <div class="stat-row"><span class="label">Grass</span><span>${state.grass}</span></div>
                   <div class="stat-row"><span class="label">Grain</span><span>${state.grain}</span></div>
                   <div class="stat-row"><span class="label">Seeds</span><span>${state.seeds}</span></div>
                   <div class="stat-row"><span class="label">Fur</span><span>${state.fur}</span></div>
@@ -1362,13 +1359,13 @@ function render() {
                   <div class="stat-row"><span class="label">Fences</span><span>${state.fences}</span></div>
                   <div class="stat-row"><span class="label">Gold</span><span>${state.gold}</span></div>
                 </div>
-                <div class="stat-group">
+                <div class="stat-group stat-group-farm">
                   <h4>Farm</h4>
                   <div class="stat-row"><span class="label">Cleared plots</span><span>${state.clearedPlots}</span></div>
                   <div class="stat-row"><span class="label">Planted plots</span><span>${state.plantedPlots.length}</span></div>
                   <div class="stat-row"><span class="label">Ready plots</span><span>${readyCount}</span></div>
                 </div>
-                ${progressRows.length ? `<div class="stat-group"><h4>Progress</h4>${progressRows.join('')}</div>` : ''}
+                ${progressRows.length ? `<div class="stat-group stat-group-progress"><h4>Progress</h4>${progressRows.join('')}</div>` : ''}
               </div>
             </section>
 
