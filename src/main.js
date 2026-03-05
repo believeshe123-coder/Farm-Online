@@ -158,232 +158,137 @@ function itemLabel(key) {
   return ITEM_LABELS[key] || key;
 }
 
+const advancementChains = [
+  {
+    name: 'Main Farm Loop',
+    steps: [
+      { id: 'cleared_plots', label: 'Cleared Plots', desc: 'Clearing plots gives seeds, sticks, stones, and grass.', requires: [] },
+      { id: 'planted_plots', label: 'Planted Plots', desc: 'Plant seeds in cleared plots.', requires: ['cleared_plots'] },
+      { id: 'ready_plots', label: 'Ready Plots', desc: 'Plots become ready after growth time passes.', requires: ['planted_plots'] },
+      { id: 'harvest_grain', label: 'Harvest Grain', desc: 'Harvesting ready plots gives 5 grain.', requires: ['ready_plots'] },
+    ],
+  },
+  {
+    name: 'Sticks Chain',
+    steps: [
+      { id: 'sticks', label: 'Sticks', desc: 'Gather sticks from clearing plots or stick gathering.', requires: [] },
+      { id: 'wood', label: 'Wood', desc: 'Wood requires an axe to gather effectively.', requires: ['sticks'] },
+    ],
+  },
+  {
+    name: 'Stones Chain',
+    steps: [
+      { id: 'stones', label: 'Stones', desc: 'Gather stones from clearing plots or stone gathering.', requires: [] },
+      { id: 'rocks', label: 'Rocks', desc: 'Rocks require a pickaxe to gather effectively.', requires: ['stones'] },
+    ],
+  },
+  {
+    name: 'Seeds Chain',
+    steps: [
+      { id: 'seeds', label: 'Seeds', desc: 'Seeds come from clearing plots or seed gathering.', requires: [] },
+      { id: 'grains', label: 'Grains', desc: 'Seeds must be planted in cleared plots to turn into grain.', requires: ['seeds'] },
+      { id: 'food', label: 'Food', desc: 'Grains can be turned into food at a cooking fire.', requires: ['grains'] },
+    ],
+  },
+  {
+    name: 'Grass Chain',
+    steps: [
+      { id: 'grass', label: 'Grass', desc: 'Gather grass from clearing plots or grass gathering.', requires: [] },
+      { id: 'rope', label: 'Rope', desc: 'Craft rope from gathered grass.', requires: ['grass'] },
+    ],
+  },
+  {
+    name: 'Basket Chain',
+    steps: [
+      { id: 'basket', label: 'Basket', desc: 'Basket is made of sticks.', requires: [] },
+      { id: 'wheelbarrow', label: 'Wheelbarrow', desc: 'Upgrade from basket to wheelbarrow for better carrying.', requires: ['basket'] },
+    ],
+  },
+  {
+    name: 'Axe Chain',
+    steps: [
+      { id: 'handmade_axe', label: 'Handmade Axe', desc: 'Early axe used before the full axe upgrade.', requires: [] },
+      { id: 'axe', label: 'Axe', desc: 'Upgraded axe improves wood gathering.', requires: ['handmade_axe'] },
+    ],
+  },
+  {
+    name: 'Pickaxe Chain',
+    steps: [
+      { id: 'handmade_pickaxe', label: 'Handmade Pickaxe', desc: 'Early pickaxe used before the full pickaxe upgrade.', requires: [] },
+      { id: 'pickaxe', label: 'Pickaxe', desc: 'Upgraded pickaxe improves rock gathering.', requires: ['handmade_pickaxe'] },
+    ],
+  },
+  {
+    name: 'Fire Chain',
+    steps: [
+      { id: 'handmade_fire', label: 'Handmade Fire', desc: '8 stones + 4 sticks. Keeps you warm.', requires: [] },
+      { id: 'cooking_fire', label: 'Cooking Fire', desc: '8 rocks + 4 wood. Gives ability to cook.', requires: ['handmade_fire'] },
+    ],
+  },
+  {
+    name: 'Sleeping Chain',
+    steps: [
+      { id: 'handmade_sleeping_spot', label: 'Handmade Sleeping Spot', desc: '10 grass. Restores more energy than sleeping on the ground.', requires: [] },
+      { id: 'handmade_bed', label: 'Handmade Bed', desc: '10 wood + 4 rope + 10 fur. Restores full energy.', requires: ['handmade_sleeping_spot'] },
+    ],
+  },
+  {
+    name: 'Future Additions',
+    steps: [
+      { id: 'future', label: 'More chains coming...', desc: 'This table is designed to expand as new systems are added to the game.', requires: [] },
+    ],
+  },
+];
+
 function getAdvancementRoadmap() {
   const readyCount = readyPlotsCount();
-  const roadmap = [
-    {
-      lane: 'Core Survival Loop',
-      steps: [
-        {
-          key: 'clearLand',
-          name: 'Clear Land',
-          tooltip: 'Open new farmland by clearing one plot.',
-          requirements: ['None'],
-          unlocks: ['Plant Crops'],
-          done: () => state.clearedPlots > 0,
-          available: () => true,
-        },
-        {
-          key: 'plantCrops',
-          name: 'Plant Crops',
-          tooltip: 'Use seeds on a cleared empty plot.',
-          requirements: ['Cleared plots', 'Seeds'],
-          unlocks: ['Harvest'],
-          done: () => state.plantedPlots.length > 0 || state.grain > 0,
-          available: (prevDone) => prevDone && state.clearedPlots > state.plantedPlots.length && state.seeds > 0,
-        },
-        {
-          key: 'harvestCrops',
-          name: 'Harvest',
-          tooltip: 'Harvest ready plots for grain and seed returns.',
-          requirements: ['Ready plots'],
-          unlocks: ['Cook Meal'],
-          done: () => state.grain >= 5,
-          available: (prevDone) => prevDone && (readyCount > 0 || state.plantedPlots.length > 0),
-        },
-      ],
-    },
-    {
-      lane: 'Gathering Tasks',
-      steps: [
-        {
-          key: 'gatherSticks',
-          name: 'Gather Sticks',
-          tooltip: 'Collect sticks for primitive crafting and fire prep.',
-          requirements: ['None'],
-          unlocks: ['Craft Basket', 'Handmade Fire prep'],
-          done: () => state.sticks > 0,
-          available: () => true,
-        },
-        {
-          key: 'gatherStones',
-          name: 'Gather Stones',
-          tooltip: 'Collect stones for early fire and building prep.',
-          requirements: ['None'],
-          unlocks: ['Handmade Fire prep'],
-          done: () => state.stones > 0,
-          available: (prevDone) => prevDone,
-        },
-        {
-          key: 'gatherGrass',
-          name: 'Gather Grass',
-          tooltip: 'Collect grass for sleeping and future rope crafting.',
-          requirements: ['None'],
-          unlocks: ['Handmade Sleeping Spot prep'],
-          done: () => state.grass > 0,
-          available: (prevDone) => prevDone,
-        },
-        {
-          key: 'gatherSeeds',
-          name: 'Gather Seeds',
-          tooltip: 'Collect wild seeds so you can keep planting.',
-          requirements: ['None'],
-          unlocks: ['Plant Crops'],
-          done: () => state.seeds > 2,
-          available: (prevDone) => prevDone,
-        },
-      ],
-    },
-    {
-      lane: 'Crafting & Hunting',
-      steps: [
-        {
-          key: 'craftBasket',
-          name: 'Craft Basket',
-          tooltip: 'Basket unlocks forage runs for extra food and seeds.',
-          requirements: ['6 wood'],
-          unlocks: ['Gather Forage'],
-          done: () => state.hasBasket,
-          available: () => true,
-        },
-        {
-          key: 'sharpenSpear',
-          name: 'Sharpen Spear',
-          tooltip: 'Prepare a spear so you can hunt.',
-          requirements: ['2 wood'],
-          unlocks: ['Hunt Wild Game'],
-          done: () => state.hasSharpSpear || state.fur > 0,
-          available: (prevDone) => prevDone,
-        },
-        {
-          key: 'gatherForage',
-          name: 'Gather Forage',
-          tooltip: 'Use a basket to gather wild food and seeds.',
-          requirements: ['Basket'],
-          unlocks: ['Reliable food income'],
-          done: () => state.food > 16 || state.seeds > 3,
-          available: (prevDone) => prevDone && state.hasBasket,
-        },
-        {
-          key: 'huntWildGame',
-          name: 'Hunt Wild Game',
-          tooltip: 'Spend your spear to hunt for food and fur.',
-          requirements: ['Sharp spear'],
-          unlocks: ['Tan Fur to Cloth'],
-          done: () => state.fur > 0,
-          available: (prevDone) => prevDone,
-        },
-        {
-          key: 'tanFurToCloth',
-          name: 'Tan Fur to Cloth',
-          tooltip: 'Process fur into cloth for supplies and safety.',
-          requirements: ['2 fur'],
-          unlocks: ['Cloth for injuries and trade'],
-          done: () => state.cloth > 0,
-          available: (prevDone) => prevDone,
-        },
-      ],
-    },
-    {
-      lane: 'Building & Food Upgrades',
-      steps: [
-        {
-          key: 'chopWood',
-          name: 'Chop Wood',
-          tooltip: 'Gather wood to fuel all core building projects.',
-          requirements: ['None'],
-          unlocks: ['Cookpot, Lean-to, Cottage'],
-          done: () => state.wood >= 20,
-          available: () => true,
-        },
-        {
-          key: 'buildCookfire',
-          name: 'Build Cookpot',
-          tooltip: 'Cookpot enables turning grain into food.',
-          requirements: ['10 wood'],
-          unlocks: ['Cook Meal'],
-          done: () => state.hasCookfire,
-          available: (prevDone) => prevDone,
-        },
-        {
-          key: 'cookMeal',
-          name: 'Cook Meal',
-          tooltip: 'Convert grain to prepared food.',
-          requirements: ['Cookpot', '5 grain'],
-          unlocks: ['Sustainable food conversion'],
-          done: () => state.hasCookfire && state.food > 20,
-          available: (prevDone) => prevDone,
-        },
-        {
-          key: 'buildLeanTo',
-          name: 'Build Lean-to',
-          tooltip: 'First shelter upgrade for better nightly survival.',
-          requirements: ['30 wood'],
-          unlocks: ['Cottage'],
-          done: () => state.shelterLevel >= 1,
-          available: (prevDone) => prevDone && state.wood >= 10,
-        },
-        {
-          key: 'buildCottage',
-          name: 'Build Cottage',
-          tooltip: 'Major shelter upgrade for long-term settlement growth.',
-          requirements: ['Lean-to', '80 wood', '30 gold'],
-          unlocks: ['High-tier housing'],
-          done: () => state.shelterLevel >= 2,
-          available: (prevDone) => prevDone && state.shelterLevel >= 1,
-        },
-      ],
-    },
-    {
-      lane: 'Trading & Town Growth',
-      steps: [
-        {
-          key: 'buildMarketStall',
-          name: 'Build Market Stall',
-          tooltip: 'Unlock direct item listing and traveler economy.',
-          requirements: ['20 wood', '10 grain'],
-          unlocks: ['List in Stall', 'Traveler trading'],
-          done: () => state.hasMarketStall,
-          available: () => true,
-        },
-        {
-          key: 'listStallOffer',
-          name: 'List in Stall',
-          tooltip: 'Post your own sales for passing buyers.',
-          requirements: ['Market Stall'],
-          unlocks: ['Gold income from listings'],
-          done: () => state.stallListings.length > 0 || state.gold > 0,
-          available: (prevDone) => prevDone && state.hasMarketStall,
-        },
-        {
-          key: 'tradeWithTravelers',
-          name: 'Trade with Travelers',
-          tooltip: 'Buy or haggle with travelers when they visit town.',
-          requirements: ['Market Stall', 'Traveler offers'],
-          unlocks: ['Flexible supply access'],
-          done: () => state.reputation > 0,
-          available: (prevDone) => prevDone && state.hasMarketStall,
-        },
-      ],
-    },
-  ];
+  const doneByStepId = {
+    cleared_plots: () => state.clearedPlots > 0,
+    planted_plots: () => state.plantedPlots.length > 0 || state.grain > 0,
+    ready_plots: () => readyCount > 0 || state.grain >= 5,
+    harvest_grain: () => state.grain >= 5,
+    sticks: () => state.sticks > 0,
+    wood: () => state.wood >= 20,
+    stones: () => state.stones > 0,
+    rocks: () => state.rocks > 0 || state.hasCookfire,
+    seeds: () => state.seeds > 2 || state.grain > 0,
+    grains: () => state.grain > 0,
+    food: () => state.food > 16,
+    grass: () => state.grass > 0,
+    rope: () => state.rope > 0,
+    basket: () => state.hasBasket,
+    wheelbarrow: () => state.hasWheelbarrow,
+    handmade_axe: () => state.hasHandmadeAxe || state.hasAxe,
+    axe: () => state.hasAxe,
+    handmade_pickaxe: () => state.hasHandmadePickaxe || state.hasPickaxe,
+    pickaxe: () => state.hasPickaxe,
+    handmade_fire: () => state.hasHandmadeFire || state.hasCookfire,
+    cooking_fire: () => state.hasCookfire,
+    handmade_sleeping_spot: () => state.hasSleepingSpot || state.hasHandmadeBed,
+    handmade_bed: () => state.hasHandmadeBed,
+    future: () => false,
+  };
 
-  const evaluatedRoadmap = roadmap.map((lane) => {
-    let previousDone = true;
+  const completionMap = {};
+  advancementChains.forEach((chain) => {
+    chain.steps.forEach((step) => {
+      completionMap[step.id] = doneByStepId[step.id] ? doneByStepId[step.id]() : false;
+    });
+  });
+
+  const evaluatedRoadmap = advancementChains.map((chain) => {
     return {
-      ...lane,
-      steps: lane.steps.map((step) => {
-        const done = step.done();
-        const available = !done && step.available(previousDone);
+      ...chain,
+      steps: chain.steps.map((step) => {
+        const done = completionMap[step.id];
+        const available = !done && step.requires.every((requiredId) => completionMap[requiredId]);
         const status = done ? 'done' : available ? 'available' : 'locked';
-        const evaluatedStep = { ...step, done, available, status };
-        previousDone = done;
-        return evaluatedStep;
+        return { ...step, done, available, status };
       }),
     };
   });
 
-  const nextObjective = evaluatedRoadmap.flatMap((lane) => lane.steps).find((step) => step.available && !step.done);
+  const nextObjective = evaluatedRoadmap.flatMap((chain) => chain.steps).find((step) => step.available && !step.done);
 
   return { evaluatedRoadmap, nextObjective };
 }
@@ -1367,7 +1272,6 @@ function render() {
 
   if (state.activePage === 'advancement') {
     const { evaluatedRoadmap, nextObjective } = getAdvancementRoadmap();
-    const selectedNode = evaluatedRoadmap.flatMap((lane) => lane.steps).find((step) => step.key === state.selectedAdvancementNode);
 
     app.innerHTML = `
       <main class="page">
@@ -1383,20 +1287,20 @@ function render() {
           <section class="advancement-tree">
             ${evaluatedRoadmap
               .map(
-                (path) => `
+                (chain) => `
                   <div class="adv-lane">
-                    <h3>${path.lane}</h3>
+                    <h3>${chain.name}</h3>
                     <div class="adv-flow">
-                      ${path.steps
+                      ${chain.steps
                         .map(
                           (step, index) => `
                             <div class="adv-node-wrap">
-                              <button class="adv-node adv-node-${step.status} ${nextObjective && nextObjective.key === step.key ? 'adv-node-next' : ''}" data-action="selectAdvancementNode:${step.key}" title="${step.tooltip}">
-                                ${step.name}
+                              <button class="adv-node adv-node-${step.status}" data-action="selectAdvancementNode:${step.id}" title="${step.desc}">
+                                ${step.label}
                                 ${step.done ? '<span class="adv-corner-check">✓</span>' : ''}
-                                ${nextObjective && nextObjective.key === step.key ? '<span class="adv-next-tag">Next</span>' : ''}
+                                ${nextObjective && nextObjective.id === step.id ? '<span class="adv-next-tag">Next</span>' : ''}
                               </button>
-                              ${index < path.steps.length - 1 ? '<span class="adv-link">→</span>' : ''}
+                              ${index < chain.steps.length - 1 ? '<span class="adv-link">→</span>' : ''}
                             </div>
                           `,
                         )
@@ -1407,16 +1311,6 @@ function render() {
               )
               .join('')}
           </section>
-          ${selectedNode ? `
-            <section class="adv-details">
-              <h3>${selectedNode.name}</h3>
-              <p class="muted">${selectedNode.tooltip}</p>
-              <p><strong>Requirements</strong></p>
-              <ul>${selectedNode.requirements.map((requirement) => `<li>${requirement}</li>`).join('')}</ul>
-              <p><strong>Unlocks</strong></p>
-              <ul>${selectedNode.unlocks.map((unlock) => `<li>${unlock}</li>`).join('')}</ul>
-            </section>
-          ` : ''}
         </section>
       </main>
     `;
