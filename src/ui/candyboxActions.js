@@ -60,11 +60,7 @@ export function getAvailableActions(gameState) {
   const primarySeed = plantableSeeds[0];
   const primarySell = sellableItems[0];
 
-  const workerHireCost = gameState.workerHireCost ?? 0;
-  const workerUpgradeCost = gameState.workerUpgradeCost ?? 0;
-
   const actions = [
-<<<<<<< codex/add-progression-layer-with-reveal-rules
     // Tier 1: core resource verbs
     maybeAction(
       'cut-down-trees',
@@ -145,94 +141,6 @@ export function getAvailableActions(gameState) {
       false,
       undefined
     ),
-=======
-    {
-      id: 'clear-debris',
-      label: getDebrisActionLabel(selectedSpot?.debris),
-      isVisible: Boolean(selectedSpot?.debris),
-      isEnabled: Boolean(selectedSpot?.debris),
-      execute: handlers.onClearDebris,
-    },
-    {
-      id: 'till-selected',
-      label: 'Till selected plot',
-      isVisible: Boolean(selectedSpot && selectedSpot.soil === 'raw' && !selectedSpot.crop),
-      isEnabled: Boolean(selectedSpot && selectedSpot.soil === 'raw' && !selectedSpot.crop),
-      execute: handlers.onTill,
-    },
-    {
-      id: 'water-selected',
-      label: 'Water selected crop',
-      isVisible: Boolean(selectedSpot?.crop),
-      isEnabled: Boolean(selectedSpot?.crop),
-      execute: handlers.onWater,
-    },
-    {
-      id: 'harvest-selected',
-      label: 'Harvest selected crop',
-      isVisible: Boolean(selectedSpot?.crop),
-      isEnabled: Boolean(selectedSpot?.crop),
-      execute: handlers.onHarvestSelected,
-    },
-    ...plantableSeeds.map((seed) => ({
-      id: `plant-${seed.itemId}`,
-      label: `Plant ${seed.label}`,
-      isVisible: Boolean(selectedSpot && !selectedSpot.crop && (selectedSpot.soil === 'hoed' || selectedSpot.soil === 'watered')),
-      isEnabled: (gameState.inventory?.[seed.itemId] ?? 0) > 0,
-      execute: () => handlers.onPlant?.(seed.itemId),
-    })),
-    {
-      id: 'harvest-ready',
-      label: 'Harvest ready on active plot',
-      isVisible: automationUnlocked,
-      isEnabled: automationUnlocked,
-      execute: handlers.onHarvestReadyOnActivePlot,
-    },
-    {
-      id: 'water-dry-planted',
-      label: 'Water dry planted on active plot',
-      isVisible: automationUnlocked,
-      isEnabled: automationUnlocked,
-      execute: handlers.onWaterDryPlantedOnActivePlot,
-    },
-    ...sellableItems.map((item) => ({
-      id: `sell-${item.itemId}`,
-      label: `Sell 1 ${item.itemId}`,
-      isVisible: contractsUnlocked,
-      isEnabled: (gameState.inventory?.[item.itemId] ?? 0) > 0,
-      execute: () => handlers.onSellOne?.(item.itemId),
-    })),
-
-    {
-      id: 'hire-worker',
-      label: `Hire worker ($${workerHireCost})`,
-      isVisible: true,
-      isEnabled: (gameState.money ?? 0) >= workerHireCost,
-      execute: handlers.onHireWorker,
-    },
-    {
-      id: 'upgrade-workers',
-      label: `Upgrade workers ($${workerUpgradeCost})`,
-      isVisible: true,
-      isEnabled: (gameState.money ?? 0) >= workerUpgradeCost,
-      execute: handlers.onUpgradeWorkers,
-    },
-    {
-      id: 'unlock-selected',
-      label: 'Unlock selected plot',
-      isVisible: coopUnlocked && Boolean(gameState.canUnlockSelected),
-      isEnabled: Boolean(gameState.canUnlockSelected) && (gameState.money ?? 0) >= (gameState.unlockSelectedCost ?? 0),
-      execute: handlers.onUnlockSelected,
-    },
-    {
-      id: 'research-overview',
-      label: 'Research options (coming soon)',
-      isVisible: researchUnlocked,
-      isEnabled: false,
-      execute: undefined,
-    },
-  ].filter((action) => typeof action.execute === 'function' || action.id === 'research-overview');
->>>>>>> main
 
     // Keep a tiny utility action for early play loop
     maybeAction(
