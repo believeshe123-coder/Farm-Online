@@ -132,60 +132,276 @@ function itemLabel(key) {
 
 function getAdvancementRoadmap() {
   const readyCount = readyPlotsCount();
-  const canUnlockMarket = state.grain >= 20 || state.reputation >= 1;
   const roadmap = [
     {
-      lane: 'Farm Start',
+      lane: 'Main Farm Loop',
       steps: [
-        { key: 'clearLand', name: 'Clear Land', requirements: ['None'], unlocks: ['Find Seeds'], done: () => state.clearedPlots > 0, available: () => true },
-        { key: 'findSeeds', name: 'Find Seeds', requirements: ['Clear Land'], unlocks: ['Plant Crops'], done: () => state.seeds > 2, available: (prevDone) => prevDone },
-        { key: 'plantCrops', name: 'Plant Crops', requirements: ['Clear Land', 'Seeds'], unlocks: ['Harvest Crops'], done: () => state.plantedPlots.length > 0 || state.grain > 0, available: (prevDone) => prevDone && state.clearedPlots > state.plantedPlots.length && state.seeds > 0 },
-        { key: 'harvestCrops', name: 'Harvest Crops', requirements: ['Crops ready to harvest'], unlocks: ['Store Grain'], done: () => state.grain > 0, available: (prevDone) => prevDone && readyCount > 0 },
-        { key: 'storeGrain', name: 'Store Grain', requirements: ['Harvest Crops'], unlocks: ['Trade path unlocks sooner'], done: () => state.grain >= 20, available: (prevDone) => prevDone && state.grain > 0 },
+        {
+          key: 'clearedPlots',
+          name: 'Cleared Plots',
+          tooltip: 'Clearing plots gives seeds, sticks, stones, and grass.',
+          requirements: ['None'],
+          unlocks: ['Planted Plots'],
+          done: () => state.clearedPlots > 0,
+          available: () => true,
+        },
+        {
+          key: 'plantedPlots',
+          name: 'Planted Plots',
+          tooltip: 'Plant seeds in cleared plots.',
+          requirements: ['Cleared plots', 'Seeds'],
+          unlocks: ['Ready Plots'],
+          done: () => state.plantedPlots.length > 0 || state.grain > 0,
+          available: (prevDone) => prevDone && state.clearedPlots > state.plantedPlots.length && state.seeds > 0,
+        },
+        {
+          key: 'readyPlots',
+          name: 'Ready Plots',
+          tooltip: 'Plots become ready after growth time passes.',
+          requirements: ['Planted plots'],
+          unlocks: ['Harvest Grain'],
+          done: () => readyCount > 0 || state.grain >= 5,
+          available: (prevDone) => prevDone && state.plantedPlots.length > 0,
+        },
+        {
+          key: 'harvestGrain',
+          name: 'Harvest Grain',
+          tooltip: 'Harvesting ready plots gives 5 grain.',
+          requirements: ['Ready plots'],
+          unlocks: ['Seeds → Grain → Food chain'],
+          done: () => state.grain >= 5,
+          available: (prevDone) => prevDone && readyCount > 0,
+        },
       ],
     },
     {
-      lane: 'Warmth & Shelter',
+      lane: 'Sticks Chain',
       steps: [
-        { key: 'chopWood', name: 'Chop Wood', requirements: ['None'], unlocks: ['Keep Night Fire'], done: () => state.wood >= 20 || state.shelterLevel > 0, available: () => true },
-        { key: 'nightFire', name: 'Keep Night Fire', requirements: ['Chop Wood'], unlocks: ['Build Lean-to'], done: () => state.warmth >= 9 || state.shelterLevel > 0, available: (prevDone) => prevDone && state.wood >= 5 },
-        { key: 'leanTo', name: 'Build Lean-to', requirements: ['30 Wood'], unlocks: ['Build Cottage'], done: () => state.shelterLevel >= 1, available: (prevDone) => prevDone && state.wood >= 30 },
-        { key: 'cottage', name: 'Build Cottage', requirements: ['80 Wood', '30 Gold', 'Lean-to'], unlocks: ['Best warmth retention'], done: () => state.shelterLevel >= 2, available: (prevDone) => prevDone && state.shelterLevel >= 1 && state.wood >= 80 && state.gold >= 30 },
+        {
+          key: 'sticksNode',
+          name: 'Sticks',
+          tooltip: 'Gather sticks from clearing plots or stick gathering.',
+          requirements: ['Clear plots or gather sticks'],
+          unlocks: ['Wood'],
+          done: () => state.clearedPlots > 0 || state.wood >= 6,
+          available: () => true,
+        },
+        {
+          key: 'woodNode',
+          name: 'Wood',
+          tooltip: 'Wood requires an axe to gather effectively.',
+          requirements: ['Axe'],
+          unlocks: ['Building and advanced crafting'],
+          done: () => state.wood >= 20,
+          available: (prevDone) => prevDone,
+        },
       ],
     },
     {
-      lane: 'Gathering',
+      lane: 'Stones Chain',
       steps: [
-        { key: 'basket', name: 'Craft Basket', requirements: ['6 Wood'], unlocks: ['Gather Forage efficiency'], done: () => state.hasBasket, available: () => state.wood >= 6 },
-        { key: 'forage', name: 'Gather Forage', requirements: ['Craft Basket'], unlocks: ['Gain Food'], done: () => state.food > 16, available: (prevDone) => prevDone },
-        { key: 'gainFood', name: 'Gain Food', requirements: ['Gather Forage'], unlocks: ['Save Seeds'], done: () => state.food >= 20, available: (prevDone) => prevDone },
-        { key: 'saveSeeds', name: 'Save Seeds', requirements: ['Food secured', 'Harvest loop'], unlocks: ['Farm stability'], done: () => state.seeds >= 5, available: (prevDone) => prevDone && state.food >= 18 },
+        {
+          key: 'stonesNode',
+          name: 'Stones',
+          tooltip: 'Gather stones from clearing plots or stone gathering.',
+          requirements: ['Clear plots or gather stones'],
+          unlocks: ['Rocks'],
+          done: () => state.clearedPlots >= 2,
+          available: () => true,
+        },
+        {
+          key: 'rocksNode',
+          name: 'Rocks',
+          tooltip: 'Rocks require a pickaxe to gather effectively.',
+          requirements: ['Pickaxe'],
+          unlocks: ['Cooking fire materials'],
+          done: () => state.hasCookfire,
+          available: (prevDone) => prevDone,
+        },
       ],
     },
     {
-      lane: 'Hunting',
+      lane: 'Seeds Chain',
       steps: [
-        { key: 'spear', name: 'Sharpen Spear', requirements: ['2 Wood'], unlocks: ['Hunt Wild Game'], done: () => state.hasSharpSpear, available: () => state.wood >= 2 },
-        { key: 'hunt', name: 'Hunt Wild Game', requirements: ['Sharpen Spear'], unlocks: ['Collect Fur'], done: () => state.fur > 0, available: (prevDone) => prevDone },
-        { key: 'fur', name: 'Collect Fur', requirements: ['Hunt Wild Game'], unlocks: ['Make Cloth'], done: () => state.fur > 0, available: (prevDone) => prevDone },
-        { key: 'cloth', name: 'Make Cloth', requirements: ['2 Fur'], unlocks: ['Higher-value trade goods'], done: () => state.cloth > 0, available: (prevDone) => prevDone && state.fur >= 2 },
+        {
+          key: 'seedsNode',
+          name: 'Seeds',
+          tooltip: 'Seeds come from clearing plots or seed gathering.',
+          requirements: ['Clear plots or gather seeds'],
+          unlocks: ['Grains'],
+          done: () => state.seeds > 2 || state.grain > 0,
+          available: () => true,
+        },
+        {
+          key: 'grainsNode',
+          name: 'Grains',
+          tooltip: 'Seeds must be planted in cleared plots to turn into grain.',
+          requirements: ['Seeds + cleared plots'],
+          unlocks: ['Food'],
+          done: () => state.grain > 0,
+          available: (prevDone) => prevDone,
+        },
+        {
+          key: 'foodNode',
+          name: 'Food',
+          tooltip: 'Grains can be turned into food at a cooking pot.',
+          requirements: ['Grain + cooking pot'],
+          unlocks: ['Sustained recovery'],
+          done: () => state.hasCookfire && state.food > 16,
+          available: (prevDone) => prevDone && (state.hasCookfire || state.grain >= 5),
+        },
       ],
     },
     {
-      lane: 'Cooking',
+      lane: 'Grass Chain',
       steps: [
-        { key: 'cookpot', name: 'Build Cookpot', requirements: ['10 Wood'], unlocks: ['Cook Meals'], done: () => state.hasCookfire, available: () => state.wood >= 10 },
-        { key: 'cookMeals', name: 'Cook Meals', requirements: ['Cookpot', '5 Grain'], unlocks: ['Improve Recovery'], done: () => state.hasCookfire && state.food > 16, available: (prevDone) => prevDone && state.hasCookfire && state.grain >= 5 },
-        { key: 'recovery', name: 'Improve Recovery', requirements: ['Cook Meals'], unlocks: ['Carryover energy bonuses'], done: () => state.bonusEnergyToday > 0 || state.bonusHoursToday > 0, available: (prevDone) => prevDone },
+        {
+          key: 'grassNode',
+          name: 'Grass',
+          tooltip: 'Gather grass from clearing plots or grass gathering.',
+          requirements: ['Clear plots or gather grass'],
+          unlocks: ['Rope'],
+          done: () => state.clearedPlots > 0,
+          available: () => true,
+        },
+        {
+          key: 'ropeNode',
+          name: 'Rope',
+          tooltip: 'Craft rope from gathered grass.',
+          requirements: ['Grass'],
+          unlocks: ['Bed and utility crafting'],
+          done: () => false,
+          available: (prevDone) => prevDone,
+        },
       ],
     },
     {
-      lane: 'Trade',
+      lane: 'Basket Chain',
       steps: [
-        { key: 'market', name: 'Build Market Stall', requirements: ['20 Wood', '10 Grain', 'Trade gate (20 Grain or 1 Reputation)'], unlocks: ['List Goods'], done: () => state.hasMarketStall, available: () => canUnlockMarket && state.wood >= 20 && state.grain >= 10 },
-        { key: 'listGoods', name: 'List Goods', requirements: ['Market Stall'], unlocks: ['Earn Gold'], done: () => state.stallListings.length > 0, available: (prevDone) => prevDone && state.hasMarketStall },
-        { key: 'earnGold', name: 'Earn Gold', requirements: ['Listed goods sold'], unlocks: ['Trader Deals'], done: () => state.gold > 0, available: (prevDone) => prevDone && state.hasMarketStall },
-        { key: 'traderDeals', name: 'Trader Deals', requirements: ['Market reputation'], unlocks: ['Reliable seasonal commerce'], done: () => state.reputation > 0, available: (prevDone) => prevDone && state.hasMarketStall },
+        {
+          key: 'basketNode',
+          name: 'Basket',
+          tooltip: 'Basket is made of sticks.',
+          requirements: ['Sticks'],
+          unlocks: ['Wheelbarrow'],
+          done: () => state.hasBasket,
+          available: () => state.wood >= 6,
+        },
+        {
+          key: 'wheelbarrowNode',
+          name: 'Wheelbarrow',
+          tooltip: 'Upgrade from basket to wheelbarrow for better carrying.',
+          requirements: ['Basket'],
+          unlocks: ['Higher transport efficiency'],
+          done: () => false,
+          available: (prevDone) => prevDone,
+        },
+      ],
+    },
+    {
+      lane: 'Axe Chain',
+      steps: [
+        {
+          key: 'handmadeAxeNode',
+          name: 'Handmade Axe',
+          tooltip: 'Early axe used before the full axe upgrade.',
+          requirements: ['Starter materials'],
+          unlocks: ['Axe'],
+          done: () => state.tools >= 1,
+          available: () => true,
+        },
+        {
+          key: 'axeNode',
+          name: 'Axe',
+          tooltip: 'Upgraded axe improves wood gathering.',
+          requirements: ['Handmade axe'],
+          unlocks: ['Advanced wood production'],
+          done: () => state.wood >= 30,
+          available: (prevDone) => prevDone,
+        },
+      ],
+    },
+    {
+      lane: 'Pickaxe Chain',
+      steps: [
+        {
+          key: 'handmadePickaxeNode',
+          name: 'Handmade Pickaxe',
+          tooltip: 'Early pickaxe used before the full pickaxe upgrade.',
+          requirements: ['Starter materials'],
+          unlocks: ['Pickaxe'],
+          done: () => false,
+          available: () => true,
+        },
+        {
+          key: 'pickaxeNode',
+          name: 'Pickaxe',
+          tooltip: 'Upgraded pickaxe improves rock gathering.',
+          requirements: ['Handmade pickaxe'],
+          unlocks: ['Advanced rock production'],
+          done: () => false,
+          available: (prevDone) => prevDone,
+        },
+      ],
+    },
+    {
+      lane: 'Fire Chain',
+      steps: [
+        {
+          key: 'handmadeFireNode',
+          name: 'Handmade Fire',
+          tooltip: '8 stones + 4 sticks. Keeps you warm.',
+          requirements: ['8 stones', '4 sticks'],
+          unlocks: ['Cooking Fire'],
+          done: () => state.warmth >= 9,
+          available: () => true,
+        },
+        {
+          key: 'cookingFireNode',
+          name: 'Cooking Fire',
+          tooltip: '8 rocks + 4 wood. Gives ability to cook.',
+          requirements: ['8 rocks', '4 wood'],
+          unlocks: ['Cook food from grain'],
+          done: () => state.hasCookfire,
+          available: (prevDone) => prevDone && state.wood >= 10,
+        },
+      ],
+    },
+    {
+      lane: 'Sleeping Chain',
+      steps: [
+        {
+          key: 'sleepingSpotNode',
+          name: 'Handmade Sleeping Spot',
+          tooltip: '10 grass. Restores more energy than sleeping on the ground.',
+          requirements: ['10 grass'],
+          unlocks: ['Handmade Bed'],
+          done: () => state.shelterLevel >= 1,
+          available: () => true,
+        },
+        {
+          key: 'handmadeBedNode',
+          name: 'Handmade Bed',
+          tooltip: '10 wood + 4 rope + 10 fur. Restores full energy.',
+          requirements: ['10 wood', '4 rope', '10 fur'],
+          unlocks: ['Full nightly recovery'],
+          done: () => state.shelterLevel >= 2,
+          available: (prevDone) => prevDone && state.shelterLevel >= 1,
+        },
+      ],
+    },
+    {
+      lane: 'Future Additions',
+      steps: [
+        {
+          key: 'futureNode',
+          name: 'More chains coming...',
+          tooltip: 'This table is designed to expand as new systems are added to the game.',
+          requirements: ['New content'],
+          unlocks: ['More advancement paths'],
+          done: () => false,
+          available: () => true,
+        },
       ],
     },
   ];
@@ -871,7 +1087,7 @@ function render() {
       <main class="page">
         <section class="options-column advancement-page">
           <h1>Settlement Advancement Table</h1>
-          <p class="muted">Progression roadmap with a tech-tree layout using labeled boxes.</p>
+          <p class="muted">Progression roadmap with tooltips. Hover any node box to view what it does.</p>
           ${nav}
           <div class="adv-legend" aria-label="Advancement state legend">
             <div class="adv-legend-item"><span class="adv-swatch adv-node-done">✓ Done</span></div>
@@ -889,7 +1105,7 @@ function render() {
                         .map(
                           (step, index) => `
                             <div class="adv-node-wrap">
-                              <button class="adv-node adv-node-${step.status} ${nextObjective && nextObjective.key === step.key ? 'adv-node-next' : ''}" data-action="selectAdvancementNode:${step.key}">
+                              <button class="adv-node adv-node-${step.status} ${nextObjective && nextObjective.key === step.key ? 'adv-node-next' : ''}" data-action="selectAdvancementNode:${step.key}" title="${step.tooltip}">
                                 ${step.name}
                                 ${step.done ? '<span class="adv-corner-check">✓</span>' : ''}
                                 ${nextObjective && nextObjective.key === step.key ? '<span class="adv-next-tag">Next</span>' : ''}
@@ -908,6 +1124,7 @@ function render() {
           ${selectedNode ? `
             <section class="adv-details">
               <h3>${selectedNode.name}</h3>
+              <p class="muted">${selectedNode.tooltip}</p>
               <p><strong>Requirements</strong></p>
               <ul>${selectedNode.requirements.map((requirement) => `<li>${requirement}</li>`).join('')}</ul>
               <p><strong>Unlocks</strong></p>
