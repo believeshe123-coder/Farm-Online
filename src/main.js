@@ -71,6 +71,7 @@ const createInitialState = () => ({
   stallListings: [],
   travelerOffers: [],
   activePage: 'main',
+  selectedAdvancementNode: null,
   gameOver: false,
   dailyChronicle: ['A new settlement begins.'],
   townChronicle: ['Year 1: Settlement founded.'],
@@ -129,6 +130,86 @@ function itemLabel(key) {
   return ITEM_LABELS[key] || key;
 }
 
+function getAdvancementRoadmap() {
+  const readyCount = readyPlotsCount();
+  const canUnlockMarket = state.grain >= 20 || state.reputation >= 1;
+  const roadmap = [
+    {
+      lane: 'Farm Start',
+      steps: [
+        { key: 'clearLand', name: 'Clear Land', requirements: ['None'], unlocks: ['Find Seeds'], done: () => state.clearedPlots > 0, available: () => true },
+        { key: 'findSeeds', name: 'Find Seeds', requirements: ['Clear Land'], unlocks: ['Plant Crops'], done: () => state.seeds > 2, available: (prevDone) => prevDone },
+        { key: 'plantCrops', name: 'Plant Crops', requirements: ['Clear Land', 'Seeds'], unlocks: ['Harvest Crops'], done: () => state.plantedPlots.length > 0 || state.grain > 0, available: (prevDone) => prevDone && state.clearedPlots > state.plantedPlots.length && state.seeds > 0 },
+        { key: 'harvestCrops', name: 'Harvest Crops', requirements: ['Crops ready to harvest'], unlocks: ['Store Grain'], done: () => state.grain > 0, available: (prevDone) => prevDone && readyCount > 0 },
+        { key: 'storeGrain', name: 'Store Grain', requirements: ['Harvest Crops'], unlocks: ['Trade path unlocks sooner'], done: () => state.grain >= 20, available: (prevDone) => prevDone && state.grain > 0 },
+      ],
+    },
+    {
+      lane: 'Warmth & Shelter',
+      steps: [
+        { key: 'chopWood', name: 'Chop Wood', requirements: ['None'], unlocks: ['Keep Night Fire'], done: () => state.wood >= 20 || state.shelterLevel > 0, available: () => true },
+        { key: 'nightFire', name: 'Keep Night Fire', requirements: ['Chop Wood'], unlocks: ['Build Lean-to'], done: () => state.warmth >= 9 || state.shelterLevel > 0, available: (prevDone) => prevDone && state.wood >= 5 },
+        { key: 'leanTo', name: 'Build Lean-to', requirements: ['30 Wood'], unlocks: ['Build Cottage'], done: () => state.shelterLevel >= 1, available: (prevDone) => prevDone && state.wood >= 30 },
+        { key: 'cottage', name: 'Build Cottage', requirements: ['80 Wood', '30 Gold', 'Lean-to'], unlocks: ['Best warmth retention'], done: () => state.shelterLevel >= 2, available: (prevDone) => prevDone && state.shelterLevel >= 1 && state.wood >= 80 && state.gold >= 30 },
+      ],
+    },
+    {
+      lane: 'Gathering',
+      steps: [
+        { key: 'basket', name: 'Craft Basket', requirements: ['6 Wood'], unlocks: ['Gather Forage efficiency'], done: () => state.hasBasket, available: () => state.wood >= 6 },
+        { key: 'forage', name: 'Gather Forage', requirements: ['Craft Basket'], unlocks: ['Gain Food'], done: () => state.food > 16, available: (prevDone) => prevDone },
+        { key: 'gainFood', name: 'Gain Food', requirements: ['Gather Forage'], unlocks: ['Save Seeds'], done: () => state.food >= 20, available: (prevDone) => prevDone },
+        { key: 'saveSeeds', name: 'Save Seeds', requirements: ['Food secured', 'Harvest loop'], unlocks: ['Farm stability'], done: () => state.seeds >= 5, available: (prevDone) => prevDone && state.food >= 18 },
+      ],
+    },
+    {
+      lane: 'Hunting',
+      steps: [
+        { key: 'spear', name: 'Sharpen Spear', requirements: ['2 Wood'], unlocks: ['Hunt Wild Game'], done: () => state.hasSharpSpear, available: () => state.wood >= 2 },
+        { key: 'hunt', name: 'Hunt Wild Game', requirements: ['Sharpen Spear'], unlocks: ['Collect Fur'], done: () => state.fur > 0, available: (prevDone) => prevDone },
+        { key: 'fur', name: 'Collect Fur', requirements: ['Hunt Wild Game'], unlocks: ['Make Cloth'], done: () => state.fur > 0, available: (prevDone) => prevDone },
+        { key: 'cloth', name: 'Make Cloth', requirements: ['2 Fur'], unlocks: ['Higher-value trade goods'], done: () => state.cloth > 0, available: (prevDone) => prevDone && state.fur >= 2 },
+      ],
+    },
+    {
+      lane: 'Cooking',
+      steps: [
+        { key: 'cookpot', name: 'Build Cookpot', requirements: ['10 Wood'], unlocks: ['Cook Meals'], done: () => state.hasCookfire, available: () => state.wood >= 10 },
+        { key: 'cookMeals', name: 'Cook Meals', requirements: ['Cookpot', '5 Grain'], unlocks: ['Improve Recovery'], done: () => state.hasCookfire && state.food > 16, available: (prevDone) => prevDone && state.hasCookfire && state.grain >= 5 },
+        { key: 'recovery', name: 'Improve Recovery', requirements: ['Cook Meals'], unlocks: ['Carryover energy bonuses'], done: () => state.bonusEnergyToday > 0 || state.bonusHoursToday > 0, available: (prevDone) => prevDone },
+      ],
+    },
+    {
+      lane: 'Trade',
+      steps: [
+        { key: 'market', name: 'Build Market Stall', requirements: ['20 Wood', '10 Grain', 'Trade gate (20 Grain or 1 Reputation)'], unlocks: ['List Goods'], done: () => state.hasMarketStall, available: () => canUnlockMarket && state.wood >= 20 && state.grain >= 10 },
+        { key: 'listGoods', name: 'List Goods', requirements: ['Market Stall'], unlocks: ['Earn Gold'], done: () => state.stallListings.length > 0, available: (prevDone) => prevDone && state.hasMarketStall },
+        { key: 'earnGold', name: 'Earn Gold', requirements: ['Listed goods sold'], unlocks: ['Trader Deals'], done: () => state.gold > 0, available: (prevDone) => prevDone && state.hasMarketStall },
+        { key: 'traderDeals', name: 'Trader Deals', requirements: ['Market reputation'], unlocks: ['Reliable seasonal commerce'], done: () => state.reputation > 0, available: (prevDone) => prevDone && state.hasMarketStall },
+      ],
+    },
+  ];
+
+  const evaluatedRoadmap = roadmap.map((lane) => {
+    let previousDone = true;
+    return {
+      ...lane,
+      steps: lane.steps.map((step) => {
+        const done = step.done();
+        const available = !done && step.available(previousDone);
+        const status = done ? 'done' : available ? 'available' : 'locked';
+        const evaluatedStep = { ...step, done, available, status };
+        previousDone = done;
+        return evaluatedStep;
+      }),
+    };
+  });
+
+  const nextObjective = evaluatedRoadmap.flatMap((lane) => lane.steps).find((step) => step.available && !step.done);
+
+  return { evaluatedRoadmap, nextObjective };
+}
+
 function createTravelerOffers() {
   const goods = [
     { item: 'seeds', qty: randInt(3, 8), goldPrice: randInt(3, 8), barter: { item: 'grain', qty: randInt(4, 10) } },
@@ -178,6 +259,11 @@ function applyAction(action) {
     return;
   }
 
+  if (action.startsWith('selectAdvancementNode:')) {
+    state.selectedAdvancementNode = action.replace('selectAdvancementNode:', '');
+    render();
+    return;
+  }
 
   if (action.startsWith('buyTraveler:')) {
     const offerId = action.replace('buyTraveler:', '');
@@ -749,6 +835,8 @@ function render() {
   const energyCritical = state.energy <= 3;
   const hoursRemaining = state.hoursPerDay - state.hoursUsed;
   const hoursCritical = hoursRemaining <= 3;
+  const dailyChroniclePreview = state.dailyChronicle.slice(-6);
+  const townChroniclePreview = state.townChronicle.slice(-6);
 
   const progressRows = [];
   if (state.hasCookfire) progressRows.push('<div class="stat-row"><span class="label">Cookpot</span><span>Built</span></div>');
@@ -776,32 +864,8 @@ function render() {
   `;
 
   if (state.activePage === 'advancement') {
-    const advancementPaths = [
-      {
-        lane: 'Farm Start',
-        steps: ['Clear Land', 'Find Seeds', 'Plant Crops', 'Harvest Crops', 'Store Grain'],
-      },
-      {
-        lane: 'Warmth & Shelter',
-        steps: ['Chop Wood', 'Keep Night Fire', 'Build Lean-to', 'Build Cottage'],
-      },
-      {
-        lane: 'Gathering',
-        steps: ['Craft Basket', 'Gather Forage', 'Gain Food', 'Save Seeds'],
-      },
-      {
-        lane: 'Hunting',
-        steps: ['Sharpen Spear', 'Hunt Wild Game', 'Collect Fur', 'Make Cloth'],
-      },
-      {
-        lane: 'Cooking',
-        steps: ['Build Cookpot', 'Cook Meals', 'Improve Recovery'],
-      },
-      {
-        lane: 'Trade',
-        steps: ['Build Market Stall', 'List Goods', 'Earn Gold', 'Trader Deals'],
-      },
-    ];
+    const { evaluatedRoadmap, nextObjective } = getAdvancementRoadmap();
+    const selectedNode = evaluatedRoadmap.flatMap((lane) => lane.steps).find((step) => step.key === state.selectedAdvancementNode);
 
     app.innerHTML = `
       <main class="page">
@@ -809,8 +873,13 @@ function render() {
           <h1>Settlement Advancement Table</h1>
           <p class="muted">Progression roadmap with a tech-tree layout using labeled boxes.</p>
           ${nav}
+          <div class="adv-legend" aria-label="Advancement state legend">
+            <div class="adv-legend-item"><span class="adv-swatch adv-node-done">✓ Done</span></div>
+            <div class="adv-legend-item"><span class="adv-swatch adv-node-available">Available</span></div>
+            <div class="adv-legend-item"><span class="adv-swatch adv-node-locked">Locked</span></div>
+          </div>
           <section class="advancement-tree">
-            ${advancementPaths
+            ${evaluatedRoadmap
               .map(
                 (path) => `
                   <div class="adv-lane">
@@ -820,7 +889,11 @@ function render() {
                         .map(
                           (step, index) => `
                             <div class="adv-node-wrap">
-                              <div class="adv-node">${step}</div>
+                              <button class="adv-node adv-node-${step.status} ${nextObjective && nextObjective.key === step.key ? 'adv-node-next' : ''}" data-action="selectAdvancementNode:${step.key}">
+                                ${step.name}
+                                ${step.done ? '<span class="adv-corner-check">✓</span>' : ''}
+                                ${nextObjective && nextObjective.key === step.key ? '<span class="adv-next-tag">Next</span>' : ''}
+                              </button>
                               ${index < path.steps.length - 1 ? '<span class="adv-link">→</span>' : ''}
                             </div>
                           `,
@@ -832,19 +905,28 @@ function render() {
               )
               .join('')}
           </section>
+          ${selectedNode ? `
+            <section class="adv-details">
+              <h3>${selectedNode.name}</h3>
+              <p><strong>Requirements</strong></p>
+              <ul>${selectedNode.requirements.map((requirement) => `<li>${requirement}</li>`).join('')}</ul>
+              <p><strong>Unlocks</strong></p>
+              <ul>${selectedNode.unlocks.map((unlock) => `<li>${unlock}</li>`).join('')}</ul>
+            </section>
+          ` : ''}
         </section>
       </main>
     `;
   } else {
     app.innerHTML = `
-      <main class="page">
+      <main class="page main-page">
         <div class="layout">
           <aside class="chronicles-column">
             <h3>Daily Chronicle</h3>
-            <ul>${state.dailyChronicle.map((line) => `<li>${line}</li>`).join('')}</ul>
+            <ul>${dailyChroniclePreview.map((line) => `<li>${line}</li>`).join('')}</ul>
 
             <h3>Town Chronicle</h3>
-            <ul>${state.townChronicle.map((line) => `<li>${line}</li>`).join('')}</ul>
+            <ul>${townChroniclePreview.map((line) => `<li>${line}</li>`).join('')}</ul>
           </aside>
 
           <section class="options-column">
