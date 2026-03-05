@@ -1132,7 +1132,6 @@ export function setAutoSellItemThreshold(state, itemId, minStock) {
   };
 }
 
-<<<<<<< codex/add-progression-layer-with-reveal-rules
 export function hireWorker(state) {
   const cost = getWorkerHireCost(state);
   if (!canAffordCost(state, cost)) {
@@ -1146,44 +1145,11 @@ export function hireWorker(state) {
     ...paidState,
     workers: [...(paidState.workers ?? []), { id: nextWorkerId, assignmentId: null, fatigue: 0, upkeep: 0 }],
     uiMessage: `Hired ${nextWorkerId}.`,
-=======
-
-export function getWorkerHireCost(state) {
-  const workerCount = state.workers?.length ?? 0;
-  return 20 + (workerCount * 10);
-}
-
-export function getWorkerToolUpgradeCost(state) {
-  const toolLevel = state.workerConfig?.toolLevel ?? 0;
-  return 40 + (toolLevel * 30);
-}
-
-export function hireWorker(state) {
-  const cost = getWorkerHireCost(state);
-  if (!canAffordCost(state, { coins: cost })) {
-    return state;
-  }
-
-  const paidState = applyCost(state, { coins: cost });
-  const nextWorkers = [...(paidState.workers ?? [])];
-  nextWorkers.push({
-    id: `worker-${nextWorkers.length + 1}`,
-    assignmentId: null,
-    fatigue: 0,
-    upkeep: 0,
-  });
-
-  return {
-    ...paidState,
-    workers: nextWorkers,
-    uiMessage: 'Hired 1 worker.',
->>>>>>> main
   };
 }
 
 export function upgradeWorkerTools(state) {
   const cost = getWorkerToolUpgradeCost(state);
-<<<<<<< codex/add-progression-layer-with-reveal-rules
   if (!canAffordCost(state, cost)) {
     return state;
   }
@@ -1191,18 +1157,10 @@ export function upgradeWorkerTools(state) {
   const paidState = applyCost(state, cost);
   const nextLevel = (paidState.workerConfig?.toolLevel ?? 0) + 1;
 
-=======
-  if (!canAffordCost(state, { coins: cost })) {
-    return state;
-  }
-
-  const paidState = applyCost(state, { coins: cost });
->>>>>>> main
   return {
     ...paidState,
     workerConfig: {
       ...(paidState.workerConfig ?? {}),
-<<<<<<< codex/add-progression-layer-with-reveal-rules
       toolLevel: nextLevel,
     },
     uiMessage: `Worker tools reached tier ${nextLevel}.`,
@@ -1248,10 +1206,5 @@ export function pulseRockCritWindow(state) {
       lastOutcome: nextWindow ? 'Crack window open.' : 'Crack window closed.',
     },
     uiMessage: nextWindow ? 'Crack window open.' : 'Crack window closed.',
-=======
-      toolLevel: (paidState.workerConfig?.toolLevel ?? 0) + 1,
-    },
-    uiMessage: 'Worker tools upgraded.',
->>>>>>> main
   };
 }
