@@ -1,5 +1,7 @@
 const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
 const DAYS_PER_SEASON = 30;
+const MARKET_GRAIN_SELL_PRICE = 20;
+const MARKET_FOOD_BUY_PRICE = 10;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -19,6 +21,10 @@ const createInitialState = () => ({
   food: 16,
   wood: 12,
   grain: 0,
+  gold: 0,
+  hasCookfire: false,
+  hasMarketStall: false,
+  shelterLevel: 0,
   population: 1,
   clearedPlots: 0,
   plantedPlots: [],
@@ -59,8 +65,8 @@ function readyPlotsCount() {
 function canDoAction({ energyCost = 0, hoursCost = 0 }) {
   if (state.gameOver) return { allowed: false, reason: 'Game over' };
   const hoursRemaining = state.hoursPerDay - state.hoursUsed;
-  if (hoursRemaining < hoursCost) return { allowed: false, reason: 'Not enough hours' };
-  if (state.energy < energyCost) return { allowed: false, reason: 'Not enough energy' };
+  if (hoursRemaining < hoursCost) return { allowed: false, reason: `Need ${hoursCost}h` };
+  if (state.energy < energyCost) return { allowed: false, reason: `Need ${energyCost} energy` };
   return { allowed: true, reason: '' };
 }
 
@@ -104,6 +110,67 @@ function applyAction(action) {
     if (state.toolDulled) yieldWood = Math.max(0, yieldWood - 2);
     state.wood += yieldWood;
     logs.push(`You chopped wood and gained +${yieldWood} wood.`);
+  }
+
+  if (action === 'buildCookfire') {
+    const gate = canDoAction({ energyCost: 2, hoursCost: 3 });
+    if (!gate.allowed || state.hasCookfire || state.wood < 10) return;
+    spendCosts({ energyCost: 2, hoursCost: 3 });
+    state.wood = clamp(state.wood - 10, 0, 9999);
+    state.hasCookfire = true;
+    logs.push('You built a cookfire. You can now cook grain into food.');
+  }
+
+  if (action === 'cookMeal') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || !state.hasCookfire || state.grain < 5) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.grain = clamp(state.grain - 5, 0, 9999);
+    state.food = clamp(state.food + 6, 0, 9999);
+    logs.push('You cooked a simple meal.');
+  }
+
+  if (action === 'buildMarketStall') {
+    const gate = canDoAction({ energyCost: 3, hoursCost: 5 });
+    if (!gate.allowed || state.hasMarketStall || (state.grain < 20 && state.reputation < 1) || state.wood < 20 || state.grain < 10) return;
+    spendCosts({ energyCost: 3, hoursCost: 5 });
+    state.wood = clamp(state.wood - 20, 0, 9999);
+    state.grain = clamp(state.grain - 10, 0, 9999);
+    state.hasMarketStall = true;
+    logs.push('A small market stall is open. Traders may visit.');
+  }
+
+
+  if (action === 'buildLeanTo') {
+    const gate = canDoAction({ energyCost: 3, hoursCost: 5 });
+    if (!gate.allowed || state.shelterLevel >= 1 || state.wood < 30) return;
+    spendCosts({ energyCost: 3, hoursCost: 5 });
+    state.wood = clamp(state.wood - 30, 0, 9999);
+    state.shelterLevel = 1;
+    logs.push('You built a lean-to. Nights will be warmer and safer.');
+  }
+
+  if (action === 'buildCottage') {
+    const gate = canDoAction({ energyCost: 4, hoursCost: 6 });
+    if (!gate.allowed || state.shelterLevel < 1 || state.shelterLevel >= 2 || state.wood < 80 || state.gold < 30) return;
+    spendCosts({ energyCost: 4, hoursCost: 6 });
+    state.wood = clamp(state.wood - 80, 0, 9999);
+    state.gold = clamp(state.gold - 30, 0, 9999);
+    state.shelterLevel = 2;
+    logs.push('You built a sturdy cottage. Your settlement can better survive harsh seasons.');
+  }
+  if (action === 'sellGrainPack') {
+    if (!state.hasMarketStall || state.grain < 10) return;
+    state.grain = clamp(state.grain - 10, 0, 9999);
+    state.gold += MARKET_GRAIN_SELL_PRICE;
+    logs.push(`You sold 10 grain for ${MARKET_GRAIN_SELL_PRICE} gold.`);
+  }
+
+  if (action === 'buyFoodPack') {
+    if (!state.hasMarketStall || state.gold < MARKET_FOOD_BUY_PRICE) return;
+    state.gold = clamp(state.gold - MARKET_FOOD_BUY_PRICE, 0, 9999);
+    state.food = clamp(state.food + 5, 0, 9999);
+    logs.push(`You bought 5 food for ${MARKET_FOOD_BUY_PRICE} gold.`);
   }
 
   if (action === 'rest') {
@@ -184,6 +251,7 @@ function applyDailyEvents(logs) {
   }
 }
 
+
 function endDay() {
   if (state.gameOver) {
     render();
@@ -200,6 +268,7 @@ function endDay() {
   const startingFood = state.food;
   state.food = clamp(state.food - foodNeed, 0, 9999);
   const shortage = Math.max(foodNeed - startingFood, 0);
+  const wasFed = shortage === 0;
 
   if (shortage > 0) {
     state.hunger = clamp(state.hunger + shortage, 0, 10);
@@ -213,8 +282,12 @@ function endDay() {
   let warmthLoss = 0;
   if (season === 'Spring' || season === 'Summer') warmthLoss = Math.random() < 0.5 ? 0 : 1;
   if (season === 'Autumn') warmthLoss = 1;
-  if (season === 'Winter') warmthLoss = 2;
+  if (season === 'Winter') warmthLoss = Math.max(0, 2 - state.shelterLevel);
   state.warmth = clamp(state.warmth - warmthLoss, 0, 10);
+  if (state.shelterLevel >= 1) {
+    state.warmth = clamp(state.warmth + 2, 0, 10);
+    logs.push('Shelter kept heat in (+2 warmth).');
+  }
   logs.push(`Warmth changed by -${warmthLoss}.`);
 
   if (state.hunger >= 7) {
@@ -228,6 +301,11 @@ function endDay() {
   if (state.warmth <= 2) {
     state.health = clamp(state.health - 1, 0, 10);
     logs.push('Cold conditions harmed health.');
+  }
+
+  if (state.shelterLevel >= 2 && wasFed) {
+    state.health = clamp(state.health + 1, 0, 10);
+    logs.push('The cottage and a full meal restored +1 health.');
   }
 
   applyDailyEvents(logs);
@@ -293,6 +371,62 @@ function actionStatus(actionName) {
     return { disabled: !gate.allowed, reason: gate.reason };
   }
 
+
+  if (actionName === 'buildLeanTo') {
+    const gate = canDoAction({ energyCost: 3, hoursCost: 5 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.shelterLevel >= 1) return { disabled: true, reason: 'Lean-to already built' };
+    if (state.wood < 30) return { disabled: true, reason: 'Needs 30 wood' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'buildCottage') {
+    const gate = canDoAction({ energyCost: 4, hoursCost: 6 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.shelterLevel < 1) return { disabled: true, reason: 'Requires lean-to first' };
+    if (state.shelterLevel >= 2) return { disabled: true, reason: 'Cottage already built' };
+    if (state.wood < 80) return { disabled: true, reason: 'Needs 80 wood' };
+    if (state.gold < 30) return { disabled: true, reason: 'Needs 30 gold' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'buildCookfire') {
+    const gate = canDoAction({ energyCost: 2, hoursCost: 3 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.hasCookfire) return { disabled: true, reason: 'Cookfire already built' };
+    if (state.wood < 10) return { disabled: true, reason: 'Needs 10 wood' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'cookMeal') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasCookfire) return { disabled: true, reason: 'Requires cookfire' };
+    if (state.grain < 5) return { disabled: true, reason: 'Needs 5 grain' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'buildMarketStall') {
+    const gate = canDoAction({ energyCost: 3, hoursCost: 5 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.hasMarketStall) return { disabled: true, reason: 'Market stall already built' };
+    if (state.grain < 20 && state.reputation < 1) return { disabled: true, reason: 'Unlocks at 20 grain or 1 reputation' };
+    if (state.wood < 20) return { disabled: true, reason: 'Needs 20 wood' };
+    if (state.grain < 10) return { disabled: true, reason: 'Needs 10 grain' };
+    return { disabled: false, reason: '' };
+  }
+  if (actionName === 'sellGrainPack') {
+    if (!state.hasMarketStall) return { disabled: true, reason: 'Requires market stall' };
+    if (state.grain < 10) return { disabled: true, reason: 'Need 10 grain' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'buyFoodPack') {
+    if (!state.hasMarketStall) return { disabled: true, reason: 'Requires market stall' };
+    if (state.gold < MARKET_FOOD_BUY_PRICE) return { disabled: true, reason: `Need ${MARKET_FOOD_BUY_PRICE} gold` };
+    return { disabled: false, reason: '' };
+  }
+
   if (actionName === 'endDay') return { disabled: false, reason: '' };
   if (actionName === 'newSettlement') return { disabled: false, reason: '' };
 
@@ -301,70 +435,120 @@ function actionStatus(actionName) {
 
 function btn(label, actionName, costsText) {
   const { disabled, reason } = actionStatus(actionName);
-  return `<button data-action="${actionName}" ${disabled ? 'disabled' : ''} title="${reason || ''}">
+  return `<button class="action-btn" data-action="${actionName}" ${disabled ? 'disabled' : ''} title="${reason || ''}">
       ${label}${costsText ? ` (${costsText})` : ''}
-    </button>
-    ${disabled && reason ? `<span class="reason">${reason}</span>` : ''}`;
+    </button>`;
 }
 
 function render() {
   const app = document.getElementById('root');
   const season = getSeason();
   const readyCount = readyPlotsCount();
-  const growingCount = state.plantedPlots.filter((p) => p.daysUntilHarvest > 0).length;
+  const buildingsVisible = state.day >= 2 || state.wood >= 10;
+  const canUnlockMarket = state.grain >= 20 || state.reputation >= 1;
+  const shelterText = state.shelterLevel === 0 ? 'None' : state.shelterLevel === 1 ? 'Lean-to' : 'Cottage';
+
+  const progressRows = [];
+  if (state.hasCookfire) progressRows.push('<div class="stat-row"><span class="label">Cookfire</span><span>Built</span></div>');
+  if (state.hasMarketStall) progressRows.push('<div class="stat-row"><span class="label">Market</span><span>Built</span></div>');
+  if (state.shelterLevel > 0) progressRows.push(`<div class="stat-row"><span class="label">Shelter</span><span>${shelterText}</span></div>`);
+  if (state.reputation > 0) progressRows.push(`<div class="stat-row"><span class="label">Reputation</span><span>${state.reputation}</span></div>`);
 
   app.innerHTML = `
     <main class="page">
-      <h1>Medieval Incremental Economy Simulator</h1>
-      <p>Day ${state.day} — ${season} ${state.seasonDay}/${DAYS_PER_SEASON} | Year ${state.year}</p>
+      <div class="layout">
+        <aside class="chronicles-column">
+          <h3>Daily Chronicle</h3>
+          <ul>
+            ${state.dailyChronicle.map((line) => `<li>${line}</li>`).join('')}
+          </ul>
 
-      <pre class="stats">Energy: ${state.energy}/${state.energyMax}
-Hours: ${state.hoursUsed}/${state.hoursPerDay}
-Hunger: ${state.hunger}/10
-Health: ${state.health}/10
-Warmth: ${state.warmth}/10
-Food: ${state.food}
-Wood: ${state.wood}
-Grain: ${state.grain}
-Population: ${state.population}
-Cleared plots: ${state.clearedPlots}
-Planted plots: ${state.plantedPlots.length} (${growingCount} growing, ${readyCount} ready)
-Tool condition: ${state.toolDulled ? 'Dulled' : 'Good'}
-Reputation: ${state.reputation}</pre>
+          <h3>Town Chronicle</h3>
+          <ul>
+            ${state.townChronicle.map((line) => `<li>${line}</li>`).join('')}
+          </ul>
+        </aside>
 
-      ${state.gameOver ? '<p class="game-over">Game Over: your settlement can no longer continue.</p>' : ''}
+        <section class="options-column">
+          <h1>Medieval Incremental Economy Simulator</h1>
+          <p>Day ${state.day} — ${season} ${state.seasonDay}/${DAYS_PER_SEASON} | Year ${state.year}</p>
 
-      <section>
-        <h3>Farm</h3>
-        <div class="actions">
-          ${btn('Clear Land', 'clearLand', '-3 energy, 4h')}
-          ${btn('Plant Crops', 'plantCrops', '-2 energy, 2h')}
-          ${btn('Chop Wood', 'chopWood', '-2 energy, 2h')}
-          ${readyCount > 0 ? btn('Harvest', 'harvest', '-2 energy, 3h') : ''}
-        </div>
-      </section>
+          <section class="stats">
+            <div class="stats-grid">
+              <div class="stat-group">
+                <h4>Status</h4>
+                <div class="stat-row"><span class="label key">Energy</span><span>${state.energy}/${state.energyMax}</span></div>
+                <div class="stat-row"><span class="label key">Hours</span><span>${state.hoursUsed}/${state.hoursPerDay}</span></div>
+                <div class="stat-row"><span class="label">Hunger</span><span>${state.hunger}/10</span></div>
+                <div class="stat-row"><span class="label key">Health</span><span>${state.health}/10</span></div>
+                <div class="stat-row"><span class="label">Warmth</span><span>${state.warmth}/10</span></div>
+              </div>
+              <div class="stat-group">
+                <h4>Supplies</h4>
+                <div class="stat-row"><span class="label key">Food</span><span>${state.food}</span></div>
+                <div class="stat-row"><span class="label">Wood</span><span>${state.wood}</span></div>
+                <div class="stat-row"><span class="label">Grain</span><span>${state.grain}</span></div>
+                <div class="stat-row"><span class="label">Gold</span><span>${state.gold}</span></div>
+              </div>
+              <div class="stat-group">
+                <h4>Farm</h4>
+                <div class="stat-row"><span class="label">Cleared plots</span><span>${state.clearedPlots}</span></div>
+                <div class="stat-row"><span class="label">Planted plots</span><span>${state.plantedPlots.length}</span></div>
+                <div class="stat-row"><span class="label">Ready plots</span><span>${readyCount}</span></div>
+              </div>
+              ${progressRows.length ? `<div class="stat-group"><h4>Progress</h4>${progressRows.join('')}</div>` : ''}
+            </div>
+          </section>
 
-      <section>
-        <h3>Life</h3>
-        <div class="actions">
-          ${btn('Rest', 'rest', '+3 energy, 2h')}
-        </div>
-      </section>
+          ${state.gameOver ? '<p class="game-over">Game Over: your settlement can no longer continue.</p>' : ''}
 
-      <section>
-        <button data-action="endDay">End Day</button>
-        <button data-action="newSettlement">New Settlement</button>
-      </section>
+          <section>
+            <h3>Farm</h3>
+            <div class="actions">
+              ${btn('Clear Land', 'clearLand', '-3 energy, 4h')}
+              ${btn('Plant Crops', 'plantCrops', '-2 energy, 2h')}
+              ${btn('Chop Wood', 'chopWood', '-2 energy, 2h')}
+              ${readyCount > 0 ? btn('Harvest', 'harvest', '-2 energy, 3h') : ''}
+            </div>
+          </section>
 
-      <h3>Daily Chronicle</h3>
-      <ul>
-        ${state.dailyChronicle.map((line) => `<li>${line}</li>`).join('')}
-      </ul>
+          ${buildingsVisible ? `
+          <section>
+            <h3>Buildings</h3>
+            <div class="actions">
+              ${!state.hasCookfire ? btn('Build Cookfire', 'buildCookfire', '-2 energy, 3h, -10 wood') : ''}
+              ${state.hasCookfire ? btn('Cook Meal', 'cookMeal', '-1 energy, 1h, -5 grain, +6 food') : ''}
+              ${btn('Build Lean-to', 'buildLeanTo', '-3 energy, 5h, -30 wood')}
+              ${state.shelterLevel >= 1 ? btn('Build Cottage', 'buildCottage', '-4 energy, 6h, -80 wood, -30 gold') : ''}
+              ${!state.hasMarketStall && canUnlockMarket ? btn('Build Market Stall', 'buildMarketStall', '-3 energy, 5h, -20 wood, -10 grain') : ''}
+            </div>
+          </section>
+          ` : ''}
 
-      <h3>Town Chronicle</h3>
-      <ul>
-        ${state.townChronicle.map((line) => `<li>${line}</li>`).join('')}
-      </ul>
+          <section>
+            <h3>Life</h3>
+            <div class="actions">
+              ${btn('Rest', 'rest', '+3 energy, 2h')}
+            </div>
+          </section>
+
+          ${state.hasMarketStall ? `
+          <section>
+            <h3>Market</h3>
+            <p class="muted">Prices: sell 10 grain for ${MARKET_GRAIN_SELL_PRICE} gold, buy 5 food for ${MARKET_FOOD_BUY_PRICE} gold.</p>
+            <div class="actions">
+              ${btn('Sell Grain (10)', 'sellGrainPack')}
+              ${btn('Buy Food (5)', 'buyFoodPack')}
+            </div>
+          </section>
+          ` : ''}
+
+          <section>
+            <button class="action-btn" data-action="endDay">End Day</button>
+            <button class="action-btn" data-action="newSettlement">New Settlement</button>
+          </section>
+        </section>
+      </div>
     </main>
   `;
 
