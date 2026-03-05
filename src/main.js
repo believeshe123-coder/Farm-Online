@@ -521,42 +521,6 @@ function applyAction(action) {
   }
 
 
-  if (action === 'gatherSticks') {
-    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
-    if (!gate.allowed) return;
-    spendCosts({ energyCost: 1, hoursCost: 1 });
-    const found = randInt(2, 5);
-    state.sticks = clamp(state.sticks + found, 0, 9999);
-    logs.push(`You gathered +${found} sticks.`);
-  }
-
-  if (action === 'gatherStones') {
-    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
-    if (!gate.allowed) return;
-    spendCosts({ energyCost: 1, hoursCost: 1 });
-    const found = randInt(2, 4);
-    state.stones = clamp(state.stones + found, 0, 9999);
-    logs.push(`You gathered +${found} stones.`);
-  }
-
-  if (action === 'gatherSeeds') {
-    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
-    if (!gate.allowed) return;
-    spendCosts({ energyCost: 1, hoursCost: 1 });
-    const found = randInt(1, 3);
-    state.seeds = clamp(state.seeds + found, 0, 9999);
-    logs.push(`You gathered +${found} seeds.`);
-  }
-
-  if (action === 'gatherGrass') {
-    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
-    if (!gate.allowed) return;
-    spendCosts({ energyCost: 1, hoursCost: 1 });
-    const found = randInt(2, 5);
-    state.grass = clamp(state.grass + found, 0, 9999);
-    logs.push(`You gathered +${found} grass.`);
-  }
-
   if (action === 'craftRope') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
     if (!gate.allowed || state.grass < 4) return;
@@ -1222,6 +1186,7 @@ function actionStatus(actionName) {
 
 function btn(label, actionName, costsText) {
   const { disabled, reason } = actionStatus(actionName);
+  if (disabled) return '';
   return `<button class="action-btn" data-action="${actionName}" ${disabled ? 'disabled' : ''} title="${reason || ''}">${label}${costsText ? ` (${costsText})` : ''}</button>`;
 }
 
@@ -1385,10 +1350,6 @@ function render() {
                 ${btn('Gather Grass', 'gatherGrass', '-1 energy, 1h')}
                 ${btn('Gather Seeds', 'gatherSeeds', '-1 energy, 1h')}
                 ${btn('Plant Crops', 'plantCrops', '-2 energy, 2h, -1 seed')}
-                ${btn('Gather Sticks', 'gatherSticks', '-1 energy, 1h')}
-                ${btn('Gather Stones', 'gatherStones', '-1 energy, 1h')}
-                ${btn('Gather Seeds', 'gatherSeeds', '-1 energy, 1h')}
-                ${btn('Gather Grass', 'gatherGrass', '-1 energy, 1h')}
                 ${btn('Gather Rocks', 'gatherRocks', '-2 energy, 2h')}
                 ${btn('Chop Wood', 'chopWood', '-2 energy, 2h (needs Axe)')}
                 ${btn('Gather Forage', 'gatherForage', '-1 energy, 2h')}
