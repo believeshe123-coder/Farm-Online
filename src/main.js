@@ -2,6 +2,11 @@ const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
 const DAYS_PER_SEASON = 30;
 
 const ITEM_LABELS = {
+  sticks: 'Sticks',
+  stones: 'Stones',
+  rocks: 'Rocks',
+  grass: 'Grass',
+  rope: 'Rope',
   wood: 'Wood',
   grain: 'Grain',
   food: 'Food',
@@ -23,7 +28,7 @@ const SELLABLE_ITEMS = [
 ];
 
 const BUILDING_PROJECTS = {
-  cookfire: { label: 'Cookpot', days: 2, energyCost: 2, hoursCost: 3, resources: { wood: 10 } },
+  cookfire: { label: 'Cooking Fire', days: 2, energyCost: 2, hoursCost: 3, resources: { rocks: 8, wood: 4 } },
   leanTo: { label: 'Lean-to', days: 3, energyCost: 3, hoursCost: 5, resources: { wood: 30 } },
   cottage: { label: 'Cottage', days: 4, energyCost: 4, hoursCost: 6, resources: { wood: 80, gold: 30 } },
   marketStall: { label: 'Market Stall', days: 3, energyCost: 3, hoursCost: 5, resources: { wood: 20, grain: 10 } },
@@ -49,6 +54,11 @@ const createInitialState = () => ({
   health: 10,
   warmth: 8,
   food: 16,
+  sticks: 4,
+  stones: 4,
+  rocks: 0,
+  grass: 4,
+  rope: 0,
   wood: 12,
   grain: 0,
   seeds: 2,
@@ -58,9 +68,18 @@ const createInitialState = () => ({
   fur: 0,
   gold: 0,
   hasCookfire: false,
+  hasHandmadeFire: false,
   hasMarketStall: false,
   hasBasket: false,
   hasSharpSpear: false,
+  hasKnife: false,
+  hasWheelbarrow: false,
+  hasHandmadeAxe: false,
+  hasAxe: false,
+  hasHandmadePickaxe: false,
+  hasPickaxe: false,
+  hasSleepingSpot: false,
+  hasHandmadeBed: false,
   shelterLevel: 0,
   population: 1,
   clearedPlots: 0,
@@ -133,59 +152,92 @@ function itemLabel(key) {
 function getAdvancementRoadmap() {
   const readyCount = readyPlotsCount();
   const canUnlockMarket = state.grain >= 20 || state.reputation >= 1;
+
   const roadmap = [
     {
-      lane: 'Farm Start',
+      lane: 'Main Point',
       steps: [
-        { key: 'clearLand', name: 'Clear Land', requirements: ['None'], unlocks: ['Find Seeds'], done: () => state.clearedPlots > 0, available: () => true },
-        { key: 'findSeeds', name: 'Find Seeds', requirements: ['Clear Land'], unlocks: ['Plant Crops'], done: () => state.seeds > 2, available: (prevDone) => prevDone },
-        { key: 'plantCrops', name: 'Plant Crops', requirements: ['Clear Land', 'Seeds'], unlocks: ['Harvest Crops'], done: () => state.plantedPlots.length > 0 || state.grain > 0, available: (prevDone) => prevDone && state.clearedPlots > state.plantedPlots.length && state.seeds > 0 },
-        { key: 'harvestCrops', name: 'Harvest Crops', requirements: ['Crops ready to harvest'], unlocks: ['Store Grain'], done: () => state.grain > 0, available: (prevDone) => prevDone && readyCount > 0 },
-        { key: 'storeGrain', name: 'Store Grain', requirements: ['Harvest Crops'], unlocks: ['Trade path unlocks sooner'], done: () => state.grain >= 20, available: (prevDone) => prevDone && state.grain > 0 },
+        { key: 'clearedPlots', name: 'Cleared Plots', tooltip: 'Clearing plots gives seeds, sticks, stones, and grass.', requirements: ['None'], unlocks: ['Planted Plots'], done: () => state.clearedPlots > 0, available: () => true },
+        { key: 'plantedPlots', name: 'Planted Plots', tooltip: 'Plant seeds into cleared plots.', requirements: ['Cleared plot', 'Seeds'], unlocks: ['Ready Plots'], done: () => state.plantedPlots.length > 0 || state.grain > 0, available: (prevDone) => prevDone && state.clearedPlots > state.plantedPlots.length && state.seeds > 0 },
+        { key: 'readyPlots', name: 'Ready Plots', tooltip: 'Plots become ready after enough growing days.', requirements: ['Planted plots'], unlocks: ['Harvest Grain'], done: () => readyCount > 0 || state.grain >= 5, available: (prevDone) => prevDone && state.plantedPlots.length > 0 },
+        { key: 'harvestGrain', name: 'Harvest Grain', tooltip: 'Harvesting ready plots gives 5 grain.', requirements: ['Ready plots'], unlocks: ['Food chain'], done: () => state.grain >= 5, available: (prevDone) => prevDone && readyCount > 0 },
       ],
     },
     {
-      lane: 'Warmth & Shelter',
+      lane: 'Sticks Chain',
       steps: [
-        { key: 'chopWood', name: 'Chop Wood', requirements: ['None'], unlocks: ['Keep Night Fire'], done: () => state.wood >= 20 || state.shelterLevel > 0, available: () => true },
-        { key: 'nightFire', name: 'Keep Night Fire', requirements: ['Chop Wood'], unlocks: ['Build Lean-to'], done: () => state.warmth >= 9 || state.shelterLevel > 0, available: (prevDone) => prevDone && state.wood >= 5 },
-        { key: 'leanTo', name: 'Build Lean-to', requirements: ['30 Wood'], unlocks: ['Build Cottage'], done: () => state.shelterLevel >= 1, available: (prevDone) => prevDone && state.wood >= 30 },
-        { key: 'cottage', name: 'Build Cottage', requirements: ['80 Wood', '30 Gold', 'Lean-to'], unlocks: ['Best warmth retention'], done: () => state.shelterLevel >= 2, available: (prevDone) => prevDone && state.shelterLevel >= 1 && state.wood >= 80 && state.gold >= 30 },
+        { key: 'sticks', name: 'Sticks', tooltip: 'Gather sticks from clearing plots or Gather Sticks action.', requirements: ['Clear plots or gather sticks'], unlocks: ['Wood'], done: () => state.sticks >= 6 || state.wood > 0, available: () => true },
+        { key: 'wood', name: 'Wood', tooltip: 'Wood requires an axe to gather.', requirements: ['Axe'], unlocks: ['Buildings and upgrades'], done: () => state.wood >= 20, available: (prevDone) => prevDone && state.hasAxe },
       ],
     },
     {
-      lane: 'Gathering',
+      lane: 'Stones Chain',
       steps: [
-        { key: 'basket', name: 'Craft Basket', requirements: ['6 Wood'], unlocks: ['Gather Forage efficiency'], done: () => state.hasBasket, available: () => state.wood >= 6 },
-        { key: 'forage', name: 'Gather Forage', requirements: ['Craft Basket'], unlocks: ['Gain Food'], done: () => state.food > 16, available: (prevDone) => prevDone },
-        { key: 'gainFood', name: 'Gain Food', requirements: ['Gather Forage'], unlocks: ['Save Seeds'], done: () => state.food >= 20, available: (prevDone) => prevDone },
-        { key: 'saveSeeds', name: 'Save Seeds', requirements: ['Food secured', 'Harvest loop'], unlocks: ['Farm stability'], done: () => state.seeds >= 5, available: (prevDone) => prevDone && state.food >= 18 },
+        { key: 'stones', name: 'Stones', tooltip: 'Gather stones from clearing plots or Gather Stones action.', requirements: ['Clear plots or gather stones'], unlocks: ['Rocks'], done: () => state.stones >= 8 || state.rocks > 0, available: () => true },
+        { key: 'rocks', name: 'Rocks', tooltip: 'Rocks require a pickaxe to gather.', requirements: ['Pickaxe'], unlocks: ['Cooking Fire'], done: () => state.rocks >= 8 || state.hasCookfire, available: (prevDone) => prevDone && state.hasPickaxe },
       ],
     },
     {
-      lane: 'Hunting',
+      lane: 'Seeds Chain',
       steps: [
-        { key: 'spear', name: 'Sharpen Spear', requirements: ['2 Wood'], unlocks: ['Hunt Wild Game'], done: () => state.hasSharpSpear, available: () => state.wood >= 2 },
-        { key: 'hunt', name: 'Hunt Wild Game', requirements: ['Sharpen Spear'], unlocks: ['Collect Fur'], done: () => state.fur > 0, available: (prevDone) => prevDone },
-        { key: 'fur', name: 'Collect Fur', requirements: ['Hunt Wild Game'], unlocks: ['Make Cloth'], done: () => state.fur > 0, available: (prevDone) => prevDone },
-        { key: 'cloth', name: 'Make Cloth', requirements: ['2 Fur'], unlocks: ['Higher-value trade goods'], done: () => state.cloth > 0, available: (prevDone) => prevDone && state.fur >= 2 },
+        { key: 'seeds', name: 'Seeds', tooltip: 'Gather seeds from clearing plots or Gather Seeds action.', requirements: ['Clear plots or gather seeds'], unlocks: ['Grains'], done: () => state.seeds >= 3 || state.grain > 0, available: () => true },
+        { key: 'grains', name: 'Grains', tooltip: 'Seeds must be planted in cleared plots to become grain.', requirements: ['Seeds + cleared plots'], unlocks: ['Food'], done: () => state.grain > 0, available: (prevDone) => prevDone },
+        { key: 'food', name: 'Food', tooltip: 'Grains can be turned into food at a cooking pot.', requirements: ['Cooking fire', 'Grain'], unlocks: ['Stable survival'], done: () => state.hasCookfire && state.food > 16, available: (prevDone) => prevDone && state.hasCookfire && state.grain >= 5 },
       ],
     },
     {
-      lane: 'Cooking',
+      lane: 'Grass Chain',
       steps: [
-        { key: 'cookpot', name: 'Build Cookpot', requirements: ['10 Wood'], unlocks: ['Cook Meals'], done: () => state.hasCookfire, available: () => state.wood >= 10 },
-        { key: 'cookMeals', name: 'Cook Meals', requirements: ['Cookpot', '5 Grain'], unlocks: ['Improve Recovery'], done: () => state.hasCookfire && state.food > 16, available: (prevDone) => prevDone && state.hasCookfire && state.grain >= 5 },
-        { key: 'recovery', name: 'Improve Recovery', requirements: ['Cook Meals'], unlocks: ['Carryover energy bonuses'], done: () => state.bonusEnergyToday > 0 || state.bonusHoursToday > 0, available: (prevDone) => prevDone },
+        { key: 'grass', name: 'Grass', tooltip: 'Gather grass from clearing plots or Gather Grass action.', requirements: ['Clear plots or gather grass'], unlocks: ['Rope'], done: () => state.grass >= 6 || state.rope > 0, available: () => true },
+        { key: 'rope', name: 'Rope', tooltip: 'Craft rope from grass.', requirements: ['4 grass'], unlocks: ['Bed upgrades'], done: () => state.rope > 0, available: (prevDone) => prevDone && state.grass >= 4 },
       ],
     },
     {
-      lane: 'Trade',
+      lane: 'Basket Chain',
       steps: [
-        { key: 'market', name: 'Build Market Stall', requirements: ['20 Wood', '10 Grain', 'Trade gate (20 Grain or 1 Reputation)'], unlocks: ['List Goods'], done: () => state.hasMarketStall, available: () => canUnlockMarket && state.wood >= 20 && state.grain >= 10 },
-        { key: 'listGoods', name: 'List Goods', requirements: ['Market Stall'], unlocks: ['Earn Gold'], done: () => state.stallListings.length > 0, available: (prevDone) => prevDone && state.hasMarketStall },
-        { key: 'earnGold', name: 'Earn Gold', requirements: ['Listed goods sold'], unlocks: ['Trader Deals'], done: () => state.gold > 0, available: (prevDone) => prevDone && state.hasMarketStall },
-        { key: 'traderDeals', name: 'Trader Deals', requirements: ['Market reputation'], unlocks: ['Reliable seasonal commerce'], done: () => state.reputation > 0, available: (prevDone) => prevDone && state.hasMarketStall },
+        { key: 'basket', name: 'Basket', tooltip: 'Basket is made of sticks.', requirements: ['6 sticks'], unlocks: ['Wheelbarrow'], done: () => state.hasBasket, available: () => state.sticks >= 6 },
+        { key: 'wheelbarrow', name: 'Wheelbarrow', tooltip: 'Wheelbarrow is the upgraded hauling tool after basket.', requirements: ['Basket', '8 wood', '2 rope'], unlocks: ['Better gathering yields'], done: () => state.hasWheelbarrow, available: (prevDone) => prevDone && state.hasBasket && state.wood >= 8 && state.rope >= 2 },
+      ],
+    },
+    {
+      lane: 'Axe Chain',
+      steps: [
+        { key: 'handmadeAxe', name: 'Handmade Axe', tooltip: 'First axe tier crafted from basic materials.', requirements: ['3 sticks', '2 stones'], unlocks: ['Axe'], done: () => state.hasHandmadeAxe || state.hasAxe, available: () => state.sticks >= 3 && state.stones >= 2 },
+        { key: 'axe', name: 'Axe', tooltip: 'Upgraded axe required for wood gathering.', requirements: ['Handmade axe', '6 wood', '1 rope'], unlocks: ['Wood chain'], done: () => state.hasAxe, available: (prevDone) => prevDone && state.hasHandmadeAxe && state.wood >= 6 && state.rope >= 1 },
+      ],
+    },
+    {
+      lane: 'Pickaxe Chain',
+      steps: [
+        { key: 'handmadePickaxe', name: 'Handmade Pickaxe', tooltip: 'First pickaxe tier crafted from basic materials.', requirements: ['3 sticks', '2 stones'], unlocks: ['Pickaxe'], done: () => state.hasHandmadePickaxe || state.hasPickaxe, available: () => state.sticks >= 3 && state.stones >= 2 },
+        { key: 'pickaxe', name: 'Pickaxe', tooltip: 'Upgraded pickaxe required for rock gathering.', requirements: ['Handmade pickaxe', '6 wood', '1 rope'], unlocks: ['Rocks chain'], done: () => state.hasPickaxe, available: (prevDone) => prevDone && state.hasHandmadePickaxe && state.wood >= 6 && state.rope >= 1 },
+      ],
+    },
+    {
+      lane: 'Fire Chain',
+      steps: [
+        { key: 'handmadeFire', name: 'Handmade Fire', tooltip: '8 stones and 4 sticks. Keeps you warm.', requirements: ['8 stones', '4 sticks'], unlocks: ['Cooking Fire'], done: () => state.hasHandmadeFire || state.hasCookfire, available: () => state.stones >= 8 && state.sticks >= 4 },
+        { key: 'cookingFire', name: 'Cooking Fire', tooltip: '8 rocks and 4 wood. Gives ability to cook.', requirements: ['Handmade fire', '8 rocks', '4 wood'], unlocks: ['Cook Meal'], done: () => state.hasCookfire, available: (prevDone) => prevDone && state.hasHandmadeFire && state.rocks >= 8 && state.wood >= 4 },
+      ],
+    },
+    {
+      lane: 'Sleeping Chain',
+      steps: [
+        { key: 'sleepingSpot', name: 'Handmade Sleeping Spot', tooltip: '10 grass. Restores more energy than sleeping on the ground.', requirements: ['10 grass'], unlocks: ['Handmade Bed'], done: () => state.hasSleepingSpot || state.hasHandmadeBed, available: () => state.grass >= 10 },
+        { key: 'handmadeBed', name: 'Handmade Bed', tooltip: '10 wood, 4 rope, 10 fur. Restores full energy.', requirements: ['Sleeping spot', '10 wood', '4 rope', '10 fur'], unlocks: ['Full energy rest'], done: () => state.hasHandmadeBed, available: (prevDone) => prevDone && state.hasSleepingSpot && state.wood >= 10 && state.rope >= 4 && state.fur >= 10 },
+      ],
+    },
+    {
+      lane: 'Trade & Market',
+      steps: [
+        { key: 'tradeGate', name: 'Reach Trade Gate', tooltip: 'Trade unlocks at 20 grain or 1 reputation.', requirements: ['20 grain or 1 reputation'], unlocks: ['Market Stall'], done: () => canUnlockMarket, available: () => true },
+        { key: 'marketStall', name: 'Build Market Stall', tooltip: 'Build your market stall to list goods and trade.', requirements: ['20 wood', '10 grain', 'Trade gate'], unlocks: ['Listings and traveler deals'], done: () => state.hasMarketStall, available: (prevDone) => prevDone && canUnlockMarket && state.wood >= 20 && state.grain >= 10 },
+      ],
+    },
+    {
+      lane: 'Future Additions',
+      steps: [
+        { key: 'future', name: 'More chains coming...', tooltip: 'This table will keep filling up as new gameplay systems are added.', requirements: ['New content'], unlocks: ['New branches'], done: () => false, available: () => true },
       ],
     },
   ];
@@ -305,7 +357,15 @@ function applyAction(action) {
     if (!gate.allowed) return;
     spendCosts({ energyCost: 3, hoursCost: 4 });
     state.clearedPlots += 1;
-    logs.push('You cleared one new plot of land.');
+    const foundSeeds = randInt(0, 2);
+    const foundSticks = randInt(1, 3);
+    const foundStones = randInt(1, 2);
+    const foundGrass = randInt(1, 3);
+    state.seeds = clamp(state.seeds + foundSeeds, 0, 9999);
+    state.sticks = clamp(state.sticks + foundSticks, 0, 9999);
+    state.stones = clamp(state.stones + foundStones, 0, 9999);
+    state.grass = clamp(state.grass + foundGrass, 0, 9999);
+    logs.push(`You cleared one new plot of land (+${foundSeeds} seeds, +${foundSticks} sticks, +${foundStones} stones, +${foundGrass} grass).`);
   }
 
   if (action === 'plantCrops') {
@@ -331,7 +391,7 @@ function applyAction(action) {
 
   if (action === 'chopWood') {
     const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
-    if (!gate.allowed) return;
+    if (!gate.allowed || !state.hasAxe) return;
     spendCosts({ energyCost: 2, hoursCost: 2 });
     let yieldWood = randInt(5, 9);
     if (state.toolDulled) yieldWood = Math.max(0, yieldWood - 2);
@@ -341,27 +401,28 @@ function applyAction(action) {
 
   if (action === 'craftBasket') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
-    if (!gate.allowed || state.hasBasket || state.wood < 6) return;
+    if (!gate.allowed || state.hasBasket || state.sticks < 6) return;
     spendCosts({ energyCost: 1, hoursCost: 2 });
-    state.wood = clamp(state.wood - 6, 0, 9999);
+    state.sticks = clamp(state.sticks - 6, 0, 9999);
     state.hasBasket = true;
-    logs.push('You wove a gathering basket (-6 wood).');
+    logs.push('You wove a gathering basket (-6 sticks).');
   }
 
   if (action === 'sharpenSpear') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
-    if (!gate.allowed || state.hasSharpSpear || state.wood < 2) return;
+    if (!gate.allowed || state.hasSharpSpear || state.sticks < 2 || state.stones < 1) return;
     spendCosts({ energyCost: 1, hoursCost: 1 });
-    state.wood = clamp(state.wood - 2, 0, 9999);
+    state.sticks = clamp(state.sticks - 2, 0, 9999);
+    state.stones = clamp(state.stones - 1, 0, 9999);
     state.hasSharpSpear = true;
-    logs.push('You sharpened and hardened a spear tip (-2 wood).');
+    logs.push('You crafted a spear from sticks and stones (-2 sticks, -1 stone).');
   }
 
   if (action === 'gatherForage') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
-    if (!gate.allowed || !state.hasBasket) return;
+    if (!gate.allowed || (!state.hasBasket && !state.hasWheelbarrow)) return;
     spendCosts({ energyCost: 1, hoursCost: 2 });
-    const foundFood = randInt(2, 4);
+    const foundFood = state.hasWheelbarrow ? randInt(3, 6) : randInt(2, 4);
     state.food = clamp(state.food + foundFood, 0, 9999);
     const foundSeeds = randInt(0, 2);
     state.seeds = clamp(state.seeds + foundSeeds, 0, 9999);
@@ -370,9 +431,9 @@ function applyAction(action) {
 
   if (action === 'huntWildGame') {
     const gate = canDoAction({ energyCost: 3, hoursCost: 3 });
-    if (!gate.allowed || !state.hasSharpSpear) return;
+    if (!gate.allowed || (!state.hasSharpSpear && !state.hasKnife)) return;
     spendCosts({ energyCost: 3, hoursCost: 3 });
-    state.hasSharpSpear = false;
+    if (state.hasSharpSpear && !state.hasKnife) state.hasSharpSpear = false;
     if (Math.random() < 0.65) {
       const meat = randInt(5, 9);
       const furYield = randInt(1, 2);
@@ -392,6 +453,151 @@ function applyAction(action) {
     }
   }
 
+
+  if (action === 'gatherSticks') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    const found = randInt(2, 5);
+    state.sticks = clamp(state.sticks + found, 0, 9999);
+    logs.push(`You gathered +${found} sticks.`);
+  }
+
+  if (action === 'gatherStones') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    const found = randInt(2, 4);
+    state.stones = clamp(state.stones + found, 0, 9999);
+    logs.push(`You gathered +${found} stones.`);
+  }
+
+  if (action === 'gatherSeeds') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    const found = randInt(1, 3);
+    state.seeds = clamp(state.seeds + found, 0, 9999);
+    logs.push(`You gathered +${found} seeds.`);
+  }
+
+  if (action === 'gatherGrass') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    const found = randInt(2, 5);
+    state.grass = clamp(state.grass + found, 0, 9999);
+    logs.push(`You gathered +${found} grass.`);
+  }
+
+  if (action === 'craftRope') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || state.grass < 4) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.grass = clamp(state.grass - 4, 0, 9999);
+    state.rope = clamp(state.rope + 1, 0, 9999);
+    logs.push('You crafted 1 rope from 4 grass.');
+  }
+
+  if (action === 'craftWheelbarrow') {
+    const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
+    if (!gate.allowed || !state.hasBasket || state.hasWheelbarrow || state.wood < 8 || state.rope < 2) return;
+    spendCosts({ energyCost: 2, hoursCost: 2 });
+    state.wood = clamp(state.wood - 8, 0, 9999);
+    state.rope = clamp(state.rope - 2, 0, 9999);
+    state.hasWheelbarrow = true;
+    logs.push('You built a wheelbarrow (-8 wood, -2 rope).');
+  }
+
+  if (action === 'craftHandmadeAxe') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || state.hasHandmadeAxe || state.hasAxe || state.sticks < 3 || state.stones < 2) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.sticks = clamp(state.sticks - 3, 0, 9999);
+    state.stones = clamp(state.stones - 2, 0, 9999);
+    state.hasHandmadeAxe = true;
+    logs.push('You crafted a handmade axe (-3 sticks, -2 stones).');
+  }
+
+  if (action === 'craftAxe') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
+    if (!gate.allowed || !state.hasHandmadeAxe || state.hasAxe || state.wood < 6 || state.rope < 1) return;
+    spendCosts({ energyCost: 1, hoursCost: 2 });
+    state.wood = clamp(state.wood - 6, 0, 9999);
+    state.rope = clamp(state.rope - 1, 0, 9999);
+    state.hasAxe = true;
+    logs.push('You upgraded to a proper axe (-6 wood, -1 rope).');
+  }
+
+  if (action === 'craftHandmadePickaxe') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || state.hasHandmadePickaxe || state.hasPickaxe || state.sticks < 3 || state.stones < 2) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.sticks = clamp(state.sticks - 3, 0, 9999);
+    state.stones = clamp(state.stones - 2, 0, 9999);
+    state.hasHandmadePickaxe = true;
+    logs.push('You crafted a handmade pickaxe (-3 sticks, -2 stones).');
+  }
+
+  if (action === 'craftPickaxe') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
+    if (!gate.allowed || !state.hasHandmadePickaxe || state.hasPickaxe || state.wood < 6 || state.rope < 1) return;
+    spendCosts({ energyCost: 1, hoursCost: 2 });
+    state.wood = clamp(state.wood - 6, 0, 9999);
+    state.rope = clamp(state.rope - 1, 0, 9999);
+    state.hasPickaxe = true;
+    logs.push('You upgraded to a proper pickaxe (-6 wood, -1 rope).');
+  }
+
+  if (action === 'gatherRocks') {
+    const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
+    if (!gate.allowed || !state.hasPickaxe) return;
+    spendCosts({ energyCost: 2, hoursCost: 2 });
+    const found = randInt(2, 4);
+    state.rocks = clamp(state.rocks + found, 0, 9999);
+    logs.push(`You gathered +${found} rocks.`);
+  }
+
+  if (action === 'buildHandmadeFire') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || state.hasHandmadeFire || state.hasCookfire || state.stones < 8 || state.sticks < 4) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.stones = clamp(state.stones - 8, 0, 9999);
+    state.sticks = clamp(state.sticks - 4, 0, 9999);
+    state.hasHandmadeFire = true;
+    state.warmth = clamp(state.warmth + 2, 0, 10);
+    logs.push('You built a handmade fire (-8 stones, -4 sticks).');
+  }
+
+  if (action === 'buildSleepingSpot') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || state.hasSleepingSpot || state.hasHandmadeBed || state.grass < 10) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.grass = clamp(state.grass - 10, 0, 9999);
+    state.hasSleepingSpot = true;
+    logs.push('You made a handmade sleeping spot (-10 grass).');
+  }
+
+  if (action === 'buildHandmadeBed') {
+    const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
+    if (!gate.allowed || !state.hasSleepingSpot || state.hasHandmadeBed || state.wood < 10 || state.rope < 4 || state.fur < 10) return;
+    spendCosts({ energyCost: 2, hoursCost: 2 });
+    state.wood = clamp(state.wood - 10, 0, 9999);
+    state.rope = clamp(state.rope - 4, 0, 9999);
+    state.fur = clamp(state.fur - 10, 0, 9999);
+    state.hasHandmadeBed = true;
+    logs.push('You built a handmade bed (-10 wood, -4 rope, -10 fur).');
+  }
+
+  if (action === 'craftKnife') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || !state.hasSharpSpear || state.hasKnife || state.stones < 2) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.stones = clamp(state.stones - 2, 0, 9999);
+    state.hasKnife = true;
+    logs.push('You carved a knife from your spear path (-2 stones).');
+  }
+
   if (action === 'tanFurToCloth') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
     if (!gate.allowed || state.fur < 2) return;
@@ -402,7 +608,7 @@ function applyAction(action) {
   }
 
   if (action === 'buildCookfire') {
-    if (state.hasCookfire) return;
+    if (state.hasCookfire || !state.hasHandmadeFire) return;
     startBuild('cookfire', logs);
   }
 
@@ -434,13 +640,17 @@ function applyAction(action) {
     const gate = canDoAction({ energyCost: 0, hoursCost: 2 });
     if (!gate.allowed) return;
     spendCosts({ energyCost: 0, hoursCost: 2 });
-    state.energy = clamp(state.energy + 3, 0, state.energyMax);
-    if (state.toolDulled && Math.random() < 0.3) {
-      state.toolDulled = false;
-      logs.push('You rested and sharpened your tools.');
+    if (state.hasHandmadeBed) {
+      state.energy = state.energyMax;
+      logs.push('You rested in your handmade bed and restored full energy.');
+    } else if (state.hasSleepingSpot) {
+      state.energy = clamp(state.energy + 5, 0, state.energyMax);
+      logs.push('You rested on your handmade sleeping spot and recovered extra energy.');
     } else {
+      state.energy = clamp(state.energy + 3, 0, state.energyMax);
       logs.push('You rested and recovered energy.');
     }
+    if (state.toolDulled && Math.random() < 0.3) state.toolDulled = false;
   }
 
   if (action === 'endDay') {
@@ -715,14 +925,60 @@ function actionStatus(actionName) {
 
   if (actionName === 'chopWood') {
     const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasAxe) return { disabled: true, reason: 'Requires Axe' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'gatherSticks') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
     return { disabled: !gate.allowed, reason: gate.reason };
+  }
+
+  if (actionName === 'gatherStones') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    return { disabled: !gate.allowed, reason: gate.reason };
+  }
+
+  if (actionName === 'gatherSeeds') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    return { disabled: !gate.allowed, reason: gate.reason };
+  }
+
+  if (actionName === 'gatherGrass') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    return { disabled: !gate.allowed, reason: gate.reason };
+  }
+
+  if (actionName === 'gatherRocks') {
+    const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasPickaxe) return { disabled: true, reason: 'Requires Pickaxe' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'craftRope') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.grass < 4) return { disabled: true, reason: 'Needs 4 grass' };
+    return { disabled: false, reason: '' };
   }
 
   if (actionName === 'craftBasket') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
     if (state.hasBasket) return { disabled: true, reason: 'Basket ready' };
-    if (state.wood < 6) return { disabled: true, reason: 'Needs 6 wood' };
+    if (state.sticks < 6) return { disabled: true, reason: 'Needs 6 sticks' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'craftWheelbarrow') {
+    const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasBasket) return { disabled: true, reason: 'Needs Basket first' };
+    if (state.hasWheelbarrow) return { disabled: true, reason: 'Wheelbarrow ready' };
+    if (state.wood < 8) return { disabled: true, reason: 'Needs 8 wood' };
+    if (state.rope < 2) return { disabled: true, reason: 'Needs 2 rope' };
     return { disabled: false, reason: '' };
   }
 
@@ -730,21 +986,31 @@ function actionStatus(actionName) {
     const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
     if (state.hasSharpSpear) return { disabled: true, reason: 'Spear is ready' };
-    if (state.wood < 2) return { disabled: true, reason: 'Needs 2 wood' };
+    if (state.sticks < 2) return { disabled: true, reason: 'Needs 2 sticks' };
+    if (state.stones < 1) return { disabled: true, reason: 'Needs 1 stone' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'craftKnife') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasSharpSpear) return { disabled: true, reason: 'Needs Spear first' };
+    if (state.hasKnife) return { disabled: true, reason: 'Knife ready' };
+    if (state.stones < 2) return { disabled: true, reason: 'Needs 2 stones' };
     return { disabled: false, reason: '' };
   }
 
   if (actionName === 'gatherForage') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
-    if (!state.hasBasket) return { disabled: true, reason: 'Craft basket first' };
+    if (!state.hasBasket && !state.hasWheelbarrow) return { disabled: true, reason: 'Craft basket first' };
     return { disabled: false, reason: '' };
   }
 
   if (actionName === 'huntWildGame') {
     const gate = canDoAction({ energyCost: 3, hoursCost: 3 });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
-    if (!state.hasSharpSpear) return { disabled: true, reason: 'Sharpen spear first' };
+    if (!state.hasSharpSpear && !state.hasKnife) return { disabled: true, reason: 'Need spear or knife first' };
     return { disabled: false, reason: '' };
   }
 
@@ -752,6 +1018,66 @@ function actionStatus(actionName) {
     const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
     if (state.fur < 2) return { disabled: true, reason: 'Needs 2 fur' };
+    return { disabled: false, reason: '' };
+  }
+
+
+  if (actionName === 'craftHandmadeAxe') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.hasHandmadeAxe || state.hasAxe) return { disabled: true, reason: 'Already crafted' };
+    if (state.sticks < 3 || state.stones < 2) return { disabled: true, reason: 'Needs 3 sticks + 2 stones' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'craftAxe') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasHandmadeAxe) return { disabled: true, reason: 'Needs handmade axe' };
+    if (state.hasAxe) return { disabled: true, reason: 'Axe ready' };
+    if (state.wood < 6 || state.rope < 1) return { disabled: true, reason: 'Needs 6 wood + 1 rope' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'craftHandmadePickaxe') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.hasHandmadePickaxe || state.hasPickaxe) return { disabled: true, reason: 'Already crafted' };
+    if (state.sticks < 3 || state.stones < 2) return { disabled: true, reason: 'Needs 3 sticks + 2 stones' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'craftPickaxe') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasHandmadePickaxe) return { disabled: true, reason: 'Needs handmade pickaxe' };
+    if (state.hasPickaxe) return { disabled: true, reason: 'Pickaxe ready' };
+    if (state.wood < 6 || state.rope < 1) return { disabled: true, reason: 'Needs 6 wood + 1 rope' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'buildHandmadeFire') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.hasHandmadeFire || state.hasCookfire) return { disabled: true, reason: 'Already built' };
+    if (state.stones < 8 || state.sticks < 4) return { disabled: true, reason: 'Needs 8 stones + 4 sticks' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'buildSleepingSpot') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.hasSleepingSpot || state.hasHandmadeBed) return { disabled: true, reason: 'Already built' };
+    if (state.grass < 10) return { disabled: true, reason: 'Needs 10 grass' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'buildHandmadeBed') {
+    const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasSleepingSpot) return { disabled: true, reason: 'Needs sleeping spot first' };
+    if (state.hasHandmadeBed) return { disabled: true, reason: 'Already built' };
+    if (state.wood < 10 || state.rope < 4 || state.fur < 10) return { disabled: true, reason: 'Needs 10 wood + 4 rope + 10 fur' };
     return { disabled: false, reason: '' };
   }
 
@@ -786,16 +1112,18 @@ function actionStatus(actionName) {
     const project = BUILDING_PROJECTS.cookfire;
     const gate = canDoAction({ energyCost: project.energyCost, hoursCost: project.hoursCost });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
-    if (state.hasCookfire) return { disabled: true, reason: 'Cookpot already built' };
+    if (state.hasCookfire) return { disabled: true, reason: 'Cooking fire already built' };
+    if (!state.hasHandmadeFire) return { disabled: true, reason: 'Requires handmade fire first' };
     if (hasActiveBuild('cookfire')) return { disabled: true, reason: 'Already building' };
-    if (state.wood < 10) return { disabled: true, reason: 'Needs 10 wood' };
+    if (state.rocks < 8) return { disabled: true, reason: 'Needs 8 rocks' };
+    if (state.wood < 4) return { disabled: true, reason: 'Needs 4 wood' };
     return { disabled: false, reason: '' };
   }
 
   if (actionName === 'cookMeal') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
-    if (!state.hasCookfire) return { disabled: true, reason: 'Requires cookpot' };
+    if (!state.hasCookfire) return { disabled: true, reason: 'Requires cooking fire' };
     if (state.grain < 5) return { disabled: true, reason: 'Needs 5 grain' };
     return { disabled: false, reason: '' };
   }
@@ -839,10 +1167,17 @@ function render() {
   const townChroniclePreview = state.townChronicle.slice(-6);
 
   const progressRows = [];
-  if (state.hasCookfire) progressRows.push('<div class="stat-row"><span class="label">Cookpot</span><span>Built</span></div>');
+  if (state.hasHandmadeFire) progressRows.push('<div class="stat-row"><span class="label">Handmade Fire</span><span>Built</span></div>');
+  if (state.hasCookfire) progressRows.push('<div class="stat-row"><span class="label">Cooking Fire</span><span>Built</span></div>');
   if (state.hasMarketStall) progressRows.push('<div class="stat-row"><span class="label">Market</span><span>Built</span></div>');
   if (state.hasBasket) progressRows.push('<div class="stat-row"><span class="label">Basket</span><span>Ready</span></div>');
-  if (state.hasSharpSpear) progressRows.push('<div class="stat-row"><span class="label">Spear</span><span>Sharpened</span></div>');
+  if (state.hasSharpSpear) progressRows.push('<div class="stat-row"><span class="label">Spear</span><span>Ready</span></div>');
+  if (state.hasKnife) progressRows.push('<div class="stat-row"><span class="label">Knife</span><span>Ready</span></div>');
+  if (state.hasAxe) progressRows.push('<div class="stat-row"><span class="label">Axe</span><span>Ready</span></div>');
+  if (state.hasPickaxe) progressRows.push('<div class="stat-row"><span class="label">Pickaxe</span><span>Ready</span></div>');
+  if (state.hasWheelbarrow) progressRows.push('<div class="stat-row"><span class="label">Wheelbarrow</span><span>Ready</span></div>');
+  if (state.hasSleepingSpot) progressRows.push('<div class="stat-row"><span class="label">Sleeping Spot</span><span>Built</span></div>');
+  if (state.hasHandmadeBed) progressRows.push('<div class="stat-row"><span class="label">Handmade Bed</span><span>Built</span></div>');
   if (state.shelterLevel > 0) progressRows.push(`<div class="stat-row"><span class="label">Shelter</span><span>${shelterText}</span></div>`);
   if (state.reputation > 0) progressRows.push(`<div class="stat-row"><span class="label">Reputation</span><span>${state.reputation}</span></div>`);
 
@@ -871,7 +1206,7 @@ function render() {
       <main class="page">
         <section class="options-column advancement-page">
           <h1>Settlement Advancement Table</h1>
-          <p class="muted">Progression roadmap with a tech-tree layout using labeled boxes.</p>
+          <p class="muted">Progression roadmap with tooltips. Hover any node box to view what it does.</p>
           ${nav}
           <div class="adv-legend" aria-label="Advancement state legend">
             <div class="adv-legend-item"><span class="adv-swatch adv-node-done">✓ Done</span></div>
@@ -889,7 +1224,7 @@ function render() {
                         .map(
                           (step, index) => `
                             <div class="adv-node-wrap">
-                              <button class="adv-node adv-node-${step.status} ${nextObjective && nextObjective.key === step.key ? 'adv-node-next' : ''}" data-action="selectAdvancementNode:${step.key}">
+                              <button class="adv-node adv-node-${step.status} ${nextObjective && nextObjective.key === step.key ? 'adv-node-next' : ''}" data-action="selectAdvancementNode:${step.key}" title="${step.tooltip}">
                                 ${step.name}
                                 ${step.done ? '<span class="adv-corner-check">✓</span>' : ''}
                                 ${nextObjective && nextObjective.key === step.key ? '<span class="adv-next-tag">Next</span>' : ''}
@@ -908,6 +1243,7 @@ function render() {
           ${selectedNode ? `
             <section class="adv-details">
               <h3>${selectedNode.name}</h3>
+              <p class="muted">${selectedNode.tooltip}</p>
               <p><strong>Requirements</strong></p>
               <ul>${selectedNode.requirements.map((requirement) => `<li>${requirement}</li>`).join('')}</ul>
               <p><strong>Unlocks</strong></p>
@@ -948,6 +1284,11 @@ function render() {
                 <div class="stat-group">
                   <h4>Supplies</h4>
                   <div class="stat-row"><span class="label key">Food</span><span>${state.food}</span></div>
+                  <div class="stat-row"><span class="label">Sticks</span><span>${state.sticks}</span></div>
+                  <div class="stat-row"><span class="label">Stones</span><span>${state.stones}</span></div>
+                  <div class="stat-row"><span class="label">Rocks</span><span>${state.rocks}</span></div>
+                  <div class="stat-row"><span class="label">Grass</span><span>${state.grass}</span></div>
+                  <div class="stat-row"><span class="label">Rope</span><span>${state.rope}</span></div>
                   <div class="stat-row"><span class="label">Wood</span><span>${state.wood}</span></div>
                   <div class="stat-row"><span class="label">Grain</span><span>${state.grain}</span></div>
                   <div class="stat-row"><span class="label">Seeds</span><span>${state.seeds}</span></div>
@@ -974,7 +1315,12 @@ function render() {
               <div class="actions">
                 ${btn('Clear Land', 'clearLand', '-3 energy, 4h')}
                 ${btn('Plant Crops', 'plantCrops', '-2 energy, 2h, -1 seed')}
-                ${btn('Chop Wood', 'chopWood', '-2 energy, 2h')}
+                ${btn('Gather Sticks', 'gatherSticks', '-1 energy, 1h')}
+                ${btn('Gather Stones', 'gatherStones', '-1 energy, 1h')}
+                ${btn('Gather Seeds', 'gatherSeeds', '-1 energy, 1h')}
+                ${btn('Gather Grass', 'gatherGrass', '-1 energy, 1h')}
+                ${btn('Gather Rocks', 'gatherRocks', '-2 energy, 2h')}
+                ${btn('Chop Wood', 'chopWood', '-2 energy, 2h (needs Axe)')}
                 ${btn('Gather Forage', 'gatherForage', '-1 energy, 2h')}
                 ${btn('Hunt Wild Game', 'huntWildGame', '-3 energy, 3h')}
                 ${readyCount > 0 ? btn('Harvest', 'harvest', '-2 energy, 3h') : ''}
@@ -984,8 +1330,15 @@ function render() {
             <section>
               <h3>Crafting</h3>
               <div class="actions">
-                ${btn('Craft Basket', 'craftBasket', '-1 energy, 2h, -6 wood')}
-                ${btn('Sharpen Spear', 'sharpenSpear', '-1 energy, 1h, -2 wood')}
+                ${btn('Craft Rope', 'craftRope', '-1 energy, 1h, -4 grass')}
+                ${btn('Craft Basket', 'craftBasket', '-1 energy, 2h, -6 sticks')}
+                ${btn('Craft Wheelbarrow', 'craftWheelbarrow', '-2 energy, 2h, -8 wood, -2 rope')}
+                ${btn('Craft Handmade Axe', 'craftHandmadeAxe', '-1 energy, 1h, -3 sticks, -2 stones')}
+                ${btn('Craft Axe', 'craftAxe', '-1 energy, 2h, -6 wood, -1 rope')}
+                ${btn('Craft Handmade Pickaxe', 'craftHandmadePickaxe', '-1 energy, 1h, -3 sticks, -2 stones')}
+                ${btn('Craft Pickaxe', 'craftPickaxe', '-1 energy, 2h, -6 wood, -1 rope')}
+                ${btn('Craft Spear', 'sharpenSpear', '-1 energy, 1h, -2 sticks, -1 stone')}
+                ${btn('Craft Knife', 'craftKnife', '-1 energy, 1h, -2 stones (from spear path)')}
                 ${btn('Tan Fur to Cloth', 'tanFurToCloth', '-1 energy, 2h, -2 fur, +1 cloth')}
               </div>
             </section>
@@ -994,7 +1347,8 @@ function render() {
             <section>
               <h3>Buildings</h3>
               <div class="actions">
-                ${!state.hasCookfire ? btn('Build Cookpot', 'buildCookfire', '2 day build, -2 energy, 3h, -10 wood') : ''}
+                ${!state.hasHandmadeFire ? btn('Build Handmade Fire', 'buildHandmadeFire', '-1 energy, 1h, -8 stones, -4 sticks') : ''}
+                ${state.hasHandmadeFire && !state.hasCookfire ? btn('Build Cooking Fire', 'buildCookfire', '2 day build, -2 energy, 3h, -8 rocks, -4 wood') : ''}
                 ${state.hasCookfire ? btn('Cook Meal', 'cookMeal', '-1 energy, 1h, -5 grain, +6 food') : ''}
                 ${btn('Build Lean-to', 'buildLeanTo', '3 day build, -3 energy, 5h, -30 wood')}
                 ${state.shelterLevel >= 1 ? btn('Build Cottage', 'buildCottage', '4 day build, -4 energy, 6h, -80 wood, -30 gold') : ''}
@@ -1005,7 +1359,7 @@ function render() {
 
             <section>
               <h3>Life</h3>
-              <div class="actions">${btn('Rest', 'rest', '+3 energy, 2h')}</div>
+              <div class="actions">${btn('Build Sleeping Spot', 'buildSleepingSpot', '-1 energy, 1h, -10 grass')} ${btn('Build Handmade Bed', 'buildHandmadeBed', '-2 energy, 2h, -10 wood, -4 rope, -10 fur')} ${btn('Rest', 'rest', '+energy, 2h')}</div>
             </section>
 
             ${state.hasMarketStall ? `
