@@ -776,25 +776,62 @@ function render() {
   `;
 
   if (state.activePage === 'advancement') {
+    const advancementPaths = [
+      {
+        lane: 'Farm Start',
+        steps: ['Clear Land', 'Find Seeds', 'Plant Crops', 'Harvest Crops', 'Store Grain'],
+      },
+      {
+        lane: 'Warmth & Shelter',
+        steps: ['Chop Wood', 'Keep Night Fire', 'Build Lean-to', 'Build Cottage'],
+      },
+      {
+        lane: 'Gathering',
+        steps: ['Craft Basket', 'Gather Forage', 'Gain Food', 'Save Seeds'],
+      },
+      {
+        lane: 'Hunting',
+        steps: ['Sharpen Spear', 'Hunt Wild Game', 'Collect Fur', 'Make Cloth'],
+      },
+      {
+        lane: 'Cooking',
+        steps: ['Build Cookpot', 'Cook Meals', 'Improve Recovery'],
+      },
+      {
+        lane: 'Trade',
+        steps: ['Build Market Stall', 'List Goods', 'Earn Gold', 'Trader Deals'],
+      },
+    ];
+
     app.innerHTML = `
       <main class="page">
-        <section class="options-column">
+        <section class="options-column advancement-page">
           <h1>Settlement Advancement Table</h1>
-          <p class="muted">Long-term progression roadmap (current and planned chains).</p>
+          <p class="muted">Progression roadmap with a tech-tree layout using labeled boxes.</p>
           ${nav}
-          <table>
-            <thead>
-              <tr><th>Path</th><th>Flow</th><th>Notes</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>Farm Start</td><td>Clear Land → Gain 0-2 Seeds → Plant Crops → Harvest Crops → Gain 5+ Grain</td><td>Core early loop you requested.</td></tr>
-              <tr><td>Warmth & Shelter</td><td>Chop Wood → Night Fire (2 wood) → Build Lean-to → Build Cottage</td><td>No shelter means night cold + animal threat.</td></tr>
-              <tr><td>Gathering</td><td>Craft Basket → Gather Forage → Gain Food + Seeds</td><td>Basket gate for gathering.</td></tr>
-              <tr><td>Hunting</td><td>Sharpen Spear → Hunt Wild Game → Gain Food + Fur → Tan Fur to Cloth</td><td>Injury can require cloth bandages.</td></tr>
-              <tr><td>Cooking</td><td>Build Cookpot → Cook Meal</td><td>Turns grain into better food output.</td></tr>
-              <tr><td>Trade</td><td>Build Market Stall → List Goods → Sell for Gold → Buy/Haggle Travelers</td><td>Economy expansion path.</td></tr>
-            </tbody>
-          </table>
+          <section class="advancement-tree">
+            ${advancementPaths
+              .map(
+                (path) => `
+                  <div class="adv-lane">
+                    <h3>${path.lane}</h3>
+                    <div class="adv-flow">
+                      ${path.steps
+                        .map(
+                          (step, index) => `
+                            <div class="adv-node-wrap">
+                              <div class="adv-node">${step}</div>
+                              ${index < path.steps.length - 1 ? '<span class="adv-link">→</span>' : ''}
+                            </div>
+                          `,
+                        )
+                        .join('')}
+                    </div>
+                  </div>
+                `,
+              )
+              .join('')}
+          </section>
         </section>
       </main>
     `;
