@@ -9,6 +9,7 @@ const ITEM_LABELS = {
   cloth: 'Cloth',
   tools: 'Tools',
   fences: 'Fences',
+  fur: 'Fur',
 };
 
 const SELLABLE_ITEMS = [
@@ -37,9 +38,13 @@ const createInitialState = () => ({
   seasonIndex: 0,
   seasonDay: 1,
   hoursPerDay: 10,
+  baseHoursPerDay: 10,
   hoursUsed: 0,
   energyMax: 10,
+  baseEnergyMax: 10,
   energy: 10,
+  bonusEnergyToday: 0,
+  bonusHoursToday: 0,
   hunger: 2,
   health: 10,
   warmth: 8,
@@ -50,9 +55,12 @@ const createInitialState = () => ({
   cloth: 0,
   tools: 1,
   fences: 0,
+  fur: 0,
   gold: 0,
   hasCookfire: false,
   hasMarketStall: false,
+  hasBasket: false,
+  hasSharpSpear: false,
   shelterLevel: 0,
   population: 1,
   clearedPlots: 0,
@@ -62,6 +70,7 @@ const createInitialState = () => ({
   activeBuilds: [],
   stallListings: [],
   travelerOffers: [],
+  activePage: 'main',
   gameOver: false,
   dailyChronicle: ['A new settlement begins.'],
   townChronicle: ['Year 1: Settlement founded.'],
@@ -154,9 +163,21 @@ function startBuild(type, logs) {
 }
 
 function applyAction(action) {
-  if (state.gameOver && action !== 'newSettlement') return;
+  if (state.gameOver && !['newSettlement', 'openAdvancementPage', 'openMainPage'].includes(action)) return;
 
   const logs = [];
+  if (action === 'openAdvancementPage') {
+    state.activePage = 'advancement';
+    render();
+    return;
+  }
+
+  if (action === 'openMainPage') {
+    state.activePage = 'main';
+    render();
+    return;
+  }
+
 
   if (action.startsWith('buyTraveler:')) {
     const offerId = action.replace('buyTraveler:', '');
@@ -217,9 +238,9 @@ function applyAction(action) {
     spendCosts({ energyCost: 2, hoursCost: 3 });
     const harvested = state.plantedPlots.filter((p) => p.daysUntilHarvest === 0).length;
     state.plantedPlots = state.plantedPlots.filter((p) => p.daysUntilHarvest > 0);
-    state.grain += harvested * 10;
+    state.grain += harvested * 5;
     state.seeds += harvested;
-    logs.push(`Harvested ${harvested} ready plot(s) for ${harvested * 10} grain and ${harvested} seeds.`);
+    logs.push(`Harvested ${harvested} ready plot(s) for ${harvested * 5} grain and ${harvested} seeds.`);
   }
 
   if (action === 'chopWood') {
@@ -230,6 +251,68 @@ function applyAction(action) {
     if (state.toolDulled) yieldWood = Math.max(0, yieldWood - 2);
     state.wood += yieldWood;
     logs.push(`You chopped wood and gained +${yieldWood} wood.`);
+  }
+
+  if (action === 'craftBasket') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
+    if (!gate.allowed || state.hasBasket || state.wood < 6) return;
+    spendCosts({ energyCost: 1, hoursCost: 2 });
+    state.wood = clamp(state.wood - 6, 0, 9999);
+    state.hasBasket = true;
+    logs.push('You wove a gathering basket (-6 wood).');
+  }
+
+  if (action === 'sharpenSpear') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || state.hasSharpSpear || state.wood < 2) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.wood = clamp(state.wood - 2, 0, 9999);
+    state.hasSharpSpear = true;
+    logs.push('You sharpened and hardened a spear tip (-2 wood).');
+  }
+
+  if (action === 'gatherForage') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
+    if (!gate.allowed || !state.hasBasket) return;
+    spendCosts({ energyCost: 1, hoursCost: 2 });
+    const foundFood = randInt(2, 4);
+    state.food = clamp(state.food + foundFood, 0, 9999);
+    const foundSeeds = randInt(0, 2);
+    state.seeds = clamp(state.seeds + foundSeeds, 0, 9999);
+    logs.push(`You gathered wild plants (+${foundFood} food, +${foundSeeds} seeds).`);
+  }
+
+  if (action === 'huntWildGame') {
+    const gate = canDoAction({ energyCost: 3, hoursCost: 3 });
+    if (!gate.allowed || !state.hasSharpSpear) return;
+    spendCosts({ energyCost: 3, hoursCost: 3 });
+    state.hasSharpSpear = false;
+    if (Math.random() < 0.65) {
+      const meat = randInt(5, 9);
+      const furYield = randInt(1, 2);
+      state.food = clamp(state.food + meat, 0, 9999);
+      state.fur = clamp(state.fur + furYield, 0, 9999);
+      logs.push(`Your hunt succeeded (+${meat} food, +${furYield} fur).`);
+    } else if (Math.random() < 0.5) {
+      if (state.cloth >= 1) {
+        state.cloth = clamp(state.cloth - 1, 0, 9999);
+        logs.push('The hunt failed and you were cut, but used 1 cloth as a bandage.');
+      } else {
+        state.health = clamp(state.health - 1, 0, 10);
+        logs.push('The hunt failed and you were hurt (-1 health). No cloth for bandages.');
+      }
+    } else {
+      logs.push('The hunt failed and you came back empty-handed.');
+    }
+  }
+
+  if (action === 'tanFurToCloth') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
+    if (!gate.allowed || state.fur < 2) return;
+    spendCosts({ energyCost: 1, hoursCost: 2 });
+    state.fur = clamp(state.fur - 2, 0, 9999);
+    state.cloth = clamp(state.cloth + 1, 0, 9999);
+    logs.push('You processed 2 fur into 1 cloth strip for repairs and bandages.');
   }
 
   if (action === 'buildCookfire') {
@@ -376,6 +459,9 @@ function endDay() {
   }
 
   const logs = [`End of Day ${state.day}:`];
+  const carryoverEnergy = Math.max(state.energy - state.bonusEnergyToday, 0);
+  const nextDayEnergyBonus = carryoverEnergy > 0 ? 2 : 0;
+  const nextDayHourBonus = Math.floor(carryoverEnergy / 3);
 
   state.plantedPlots.forEach((plot) => {
     plot.daysUntilHarvest = clamp(plot.daysUntilHarvest - 1, 0, 99);
@@ -403,6 +489,26 @@ function endDay() {
   if (season === 'Spring' || season === 'Summer') warmthLoss = Math.random() < 0.5 ? 0 : 1;
   if (season === 'Autumn') warmthLoss = 1;
   if (season === 'Winter') warmthLoss = Math.max(0, 2 - state.shelterLevel);
+
+  if (state.shelterLevel === 0) {
+    if (state.wood >= 2) {
+      state.wood = clamp(state.wood - 2, 0, 9999);
+      state.warmth = clamp(state.warmth + 1, 0, 10);
+      logs.push('You burned 2 wood in an outdoor fire to stay warm.');
+    } else {
+      warmthLoss += 2;
+      logs.push('No wood for a night fire. The cold closes in.');
+      const attackRoll = Math.random();
+      if (attackRoll < 0.7) {
+        const damage = attackRoll < 0.2 ? 2 : 1;
+        state.health = clamp(state.health - damage, 0, 10);
+        logs.push(`Wild animals attacked in the dark (-${damage} health).`);
+      } else {
+        logs.push('You heard animals nearby, but they stayed away this night.');
+      }
+    }
+  }
+
   state.warmth = clamp(state.warmth - warmthLoss, 0, 10);
   if (state.shelterLevel >= 1) {
     state.warmth = clamp(state.warmth + 2, 0, 10);
@@ -411,12 +517,15 @@ function endDay() {
   logs.push(`Warmth changed by -${warmthLoss}.`);
 
   if (state.hunger >= 7) {
-    state.energyMax = 8;
+    state.baseEnergyMax = 8;
     state.health = clamp(state.health - 1, 0, 10);
     logs.push('Severe hunger reduced tomorrow energy max and harmed health.');
   } else {
-    state.energyMax = 10;
+    state.baseEnergyMax = 10;
   }
+
+  state.energyMax = state.baseEnergyMax;
+  state.hoursPerDay = state.baseHoursPerDay;
 
   if (state.warmth <= 2) {
     state.health = clamp(state.health - 1, 0, 10);
@@ -451,6 +560,14 @@ function endDay() {
     logs.push(`${getSeason()} begins.`);
   }
 
+  state.bonusEnergyToday = nextDayEnergyBonus;
+  state.bonusHoursToday = nextDayHourBonus;
+  if (nextDayEnergyBonus > 0 || nextDayHourBonus > 0) {
+    logs.push(`Rested strength carries over: tomorrow +${nextDayEnergyBonus} energy and +${nextDayHourBonus} hour(s).`);
+  }
+
+  state.energyMax = state.baseEnergyMax + state.bonusEnergyToday;
+  state.hoursPerDay = state.baseHoursPerDay + state.bonusHoursToday;
   state.energy = state.energyMax;
   state.hoursUsed = 0;
 
@@ -467,7 +584,7 @@ function endDay() {
 }
 
 function actionStatus(actionName) {
-  if (state.gameOver && actionName !== 'newSettlement') return { disabled: true, reason: 'Game over' };
+  if (state.gameOver && !['newSettlement', 'openAdvancementPage', 'openMainPage'].includes(actionName)) return { disabled: true, reason: 'Game over' };
 
   if (actionName.startsWith('buyTraveler:')) {
     const offerId = actionName.replace('buyTraveler:', '');
@@ -513,6 +630,43 @@ function actionStatus(actionName) {
   if (actionName === 'chopWood') {
     const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
     return { disabled: !gate.allowed, reason: gate.reason };
+  }
+
+  if (actionName === 'craftBasket') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.hasBasket) return { disabled: true, reason: 'Basket ready' };
+    if (state.wood < 6) return { disabled: true, reason: 'Needs 6 wood' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'sharpenSpear') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.hasSharpSpear) return { disabled: true, reason: 'Spear is ready' };
+    if (state.wood < 2) return { disabled: true, reason: 'Needs 2 wood' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'gatherForage') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasBasket) return { disabled: true, reason: 'Craft basket first' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'huntWildGame') {
+    const gate = canDoAction({ energyCost: 3, hoursCost: 3 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasSharpSpear) return { disabled: true, reason: 'Sharpen spear first' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'tanFurToCloth') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 2 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.fur < 2) return { disabled: true, reason: 'Needs 2 fur' };
+    return { disabled: false, reason: '' };
   }
 
   if (actionName === 'rest') {
@@ -572,6 +726,8 @@ function actionStatus(actionName) {
     return { disabled: false, reason: '' };
   }
 
+  if (actionName === 'openAdvancementPage') return { disabled: false, reason: '' };
+  if (actionName === 'openMainPage') return { disabled: false, reason: '' };
   if (actionName === 'endDay') return { disabled: false, reason: '' };
   if (actionName === 'newSettlement') return { disabled: false, reason: '' };
 
@@ -597,6 +753,8 @@ function render() {
   const progressRows = [];
   if (state.hasCookfire) progressRows.push('<div class="stat-row"><span class="label">Cookpot</span><span>Built</span></div>');
   if (state.hasMarketStall) progressRows.push('<div class="stat-row"><span class="label">Market</span><span>Built</span></div>');
+  if (state.hasBasket) progressRows.push('<div class="stat-row"><span class="label">Basket</span><span>Ready</span></div>');
+  if (state.hasSharpSpear) progressRows.push('<div class="stat-row"><span class="label">Spear</span><span>Sharpened</span></div>');
   if (state.shelterLevel > 0) progressRows.push(`<div class="stat-row"><span class="label">Shelter</span><span>${shelterText}</span></div>`);
   if (state.reputation > 0) progressRows.push(`<div class="stat-row"><span class="label">Reputation</span><span>${state.reputation}</span></div>`);
 
@@ -608,123 +766,170 @@ function render() {
     ? `<ul>${state.stallListings.map((listing) => `<li>${listing.qty} ${itemLabel(listing.item)} @ ${listing.pricePerUnit}g</li>`).join('')}</ul>`
     : '<p class="muted">No goods currently listed in your stall.</p>';
 
-  app.innerHTML = `
-    <main class="page">
-      <div class="layout">
-        <aside class="chronicles-column">
-          <h3>Daily Chronicle</h3>
-          <ul>${state.dailyChronicle.map((line) => `<li>${line}</li>`).join('')}</ul>
-
-          <h3>Town Chronicle</h3>
-          <ul>${state.townChronicle.map((line) => `<li>${line}</li>`).join('')}</ul>
-        </aside>
-
-        <section class="options-column">
-          <h1>Medieval Incremental Economy Simulator</h1>
-          <p>Day ${state.day} — ${season} ${state.seasonDay}/${DAYS_PER_SEASON} | Year ${state.year}</p>
-          ${buildQueue}
-
-          <section class="stats">
-            <div class="stats-grid">
-              <div class="stat-group">
-                <h4>Status</h4>
-                <div class="stat-row"><span class="label key">Energy</span><span class="stat-value ${energyCritical ? 'critical' : ''}">${state.energy}/${state.energyMax}</span></div>
-                <div class="stat-row"><span class="label key">Hours Left</span><span class="stat-value ${hoursCritical ? 'critical' : ''}">${hoursRemaining}/${state.hoursPerDay}</span></div>
-                <div class="stat-row"><span class="label">Hunger</span><span>${state.hunger}/10</span></div>
-                <div class="stat-row"><span class="label key">Health</span><span>${state.health}/10</span></div>
-                <div class="stat-row"><span class="label">Warmth</span><span>${state.warmth}/10</span></div>
-              </div>
-              <div class="stat-group">
-                <h4>Supplies</h4>
-                <div class="stat-row"><span class="label key">Food</span><span>${state.food}</span></div>
-                <div class="stat-row"><span class="label">Wood</span><span>${state.wood}</span></div>
-                <div class="stat-row"><span class="label">Grain</span><span>${state.grain}</span></div>
-                <div class="stat-row"><span class="label">Seeds</span><span>${state.seeds}</span></div>
-                <div class="stat-row"><span class="label">Cloth</span><span>${state.cloth}</span></div>
-                <div class="stat-row"><span class="label">Tools</span><span>${state.tools}</span></div>
-                <div class="stat-row"><span class="label">Fences</span><span>${state.fences}</span></div>
-                <div class="stat-row"><span class="label">Gold</span><span>${state.gold}</span></div>
-              </div>
-              <div class="stat-group">
-                <h4>Farm</h4>
-                <div class="stat-row"><span class="label">Cleared plots</span><span>${state.clearedPlots}</span></div>
-                <div class="stat-row"><span class="label">Planted plots</span><span>${state.plantedPlots.length}</span></div>
-                <div class="stat-row"><span class="label">Ready plots</span><span>${readyCount}</span></div>
-              </div>
-              ${progressRows.length ? `<div class="stat-group"><h4>Progress</h4>${progressRows.join('')}</div>` : ''}
-            </div>
-          </section>
-
-          ${state.gameOver ? '<p class="game-over">Game Over: your settlement can no longer continue.</p>' : ''}
-
-          <section>
-            <h3>Farm</h3>
-            <div class="actions">
-              ${btn('Clear Land', 'clearLand', '-3 energy, 4h')}
-              ${btn('Plant Crops', 'plantCrops', '-2 energy, 2h, -1 seed')}
-              ${btn('Chop Wood', 'chopWood', '-2 energy, 2h')}
-              ${readyCount > 0 ? btn('Harvest', 'harvest', '-2 energy, 3h') : ''}
-            </div>
-          </section>
-
-          ${buildingsVisible ? `
-          <section>
-            <h3>Buildings</h3>
-            <div class="actions">
-              ${!state.hasCookfire ? btn('Build Cookpot', 'buildCookfire', '2 day build, -2 energy, 3h, -10 wood') : ''}
-              ${state.hasCookfire ? btn('Cook Meal', 'cookMeal', '-1 energy, 1h, -5 grain, +6 food') : ''}
-              ${btn('Build Lean-to', 'buildLeanTo', '3 day build, -3 energy, 5h, -30 wood')}
-              ${state.shelterLevel >= 1 ? btn('Build Cottage', 'buildCottage', '4 day build, -4 energy, 6h, -80 wood, -30 gold') : ''}
-              ${!state.hasMarketStall && canUnlockMarket ? btn('Build Market Stall', 'buildMarketStall', '3 day build, -3 energy, 5h, -20 wood, -10 grain') : ''}
-            </div>
-          </section>
-          ` : ''}
-
-          <section>
-            <h3>Life</h3>
-            <div class="actions">${btn('Rest', 'rest', '+3 energy, 2h')}</div>
-          </section>
-
-          ${state.hasMarketStall ? `
-          <section>
-            <h3>Market Stall (Sell Only)</h3>
-            <p class="muted">Set your own listing: choose item, quantity, and gold per unit.</p>
-            <div class="actions">
-              <select id="stall-item">${SELLABLE_ITEMS.map((item) => `<option value="${item.key}">${itemLabel(item.key)}</option>`).join('')}</select>
-              <input id="stall-qty" type="number" min="1" value="10" />
-              <input id="stall-price" type="number" min="1" value="1" />
-              ${btn('List in Stall', 'listStallOffer')}
-            </div>
-            ${listingsMarkup}
-          </section>
-          ` : ''}
-
-          <section>
-            <button class="action-btn" data-action="endDay">End Day</button>
-            <button class="action-btn" data-action="newSettlement">New Settlement</button>
-          </section>
-        </section>
+  const nav = `
+    <section>
+      <div class="actions">
+        <button class="action-btn" data-action="openMainPage">Main</button>
+        <button class="action-btn" data-action="openAdvancementPage">Advancement Table</button>
       </div>
-
-      ${state.hasMarketStall && state.travelerOffers.length ? `
-      <section class="traveler-panel">
-        <h3>Travelers in Town (Buy From Traveler)</h3>
-        <div class="traveler-grid">
-          ${state.travelerOffers.map((offer) => `
-            <article class="traveler-card">
-              <p><strong>${offer.qty} ${itemLabel(offer.item)}</strong></p>
-              <p>${offer.goldPrice} gold</p>
-              <div class="actions compact">
-                ${btn('Buy', `buyTraveler:${offer.id}`)}
-                ${offer.barter ? btn(`Haggle (${offer.barter.qty} ${itemLabel(offer.barter.item)})`, `haggleTraveler:${offer.id}`) : ''}
-              </div>
-            </article>
-          `).join('')}
-        </div>
-      </section>
-      ` : ''}
-    </main>
+    </section>
   `;
+
+  if (state.activePage === 'advancement') {
+    app.innerHTML = `
+      <main class="page">
+        <section class="options-column">
+          <h1>Settlement Advancement Table</h1>
+          <p class="muted">Long-term progression roadmap (current and planned chains).</p>
+          ${nav}
+          <table>
+            <thead>
+              <tr><th>Path</th><th>Flow</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Farm Start</td><td>Clear Land → Gain 0-2 Seeds → Plant Crops → Harvest Crops → Gain 5+ Grain</td><td>Core early loop you requested.</td></tr>
+              <tr><td>Warmth & Shelter</td><td>Chop Wood → Night Fire (2 wood) → Build Lean-to → Build Cottage</td><td>No shelter means night cold + animal threat.</td></tr>
+              <tr><td>Gathering</td><td>Craft Basket → Gather Forage → Gain Food + Seeds</td><td>Basket gate for gathering.</td></tr>
+              <tr><td>Hunting</td><td>Sharpen Spear → Hunt Wild Game → Gain Food + Fur → Tan Fur to Cloth</td><td>Injury can require cloth bandages.</td></tr>
+              <tr><td>Cooking</td><td>Build Cookpot → Cook Meal</td><td>Turns grain into better food output.</td></tr>
+              <tr><td>Trade</td><td>Build Market Stall → List Goods → Sell for Gold → Buy/Haggle Travelers</td><td>Economy expansion path.</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    `;
+  } else {
+    app.innerHTML = `
+      <main class="page">
+        <div class="layout">
+          <aside class="chronicles-column">
+            <h3>Daily Chronicle</h3>
+            <ul>${state.dailyChronicle.map((line) => `<li>${line}</li>`).join('')}</ul>
+
+            <h3>Town Chronicle</h3>
+            <ul>${state.townChronicle.map((line) => `<li>${line}</li>`).join('')}</ul>
+          </aside>
+
+          <section class="options-column">
+            <h1>Medieval Incremental Economy Simulator</h1>
+            <p>Day ${state.day} — ${season} ${state.seasonDay}/${DAYS_PER_SEASON} | Year ${state.year}</p>
+            ${buildQueue}
+            ${nav}
+
+            <section class="stats">
+              <div class="stats-grid">
+                <div class="stat-group">
+                  <h4>Status</h4>
+                  <div class="stat-row"><span class="label key">Energy</span><span class="stat-value ${energyCritical ? 'critical' : ''}">${state.energy}/${state.energyMax}</span></div>
+                  <div class="stat-row"><span class="label key">Hours Left</span><span class="stat-value ${hoursCritical ? 'critical' : ''}">${hoursRemaining}/${state.hoursPerDay}</span></div>
+                  <div class="stat-row"><span class="label">Hunger</span><span>${state.hunger}/10</span></div>
+                  <div class="stat-row"><span class="label key">Health</span><span>${state.health}/10</span></div>
+                  <div class="stat-row"><span class="label">Warmth</span><span>${state.warmth}/10</span></div>
+                </div>
+                <div class="stat-group">
+                  <h4>Supplies</h4>
+                  <div class="stat-row"><span class="label key">Food</span><span>${state.food}</span></div>
+                  <div class="stat-row"><span class="label">Wood</span><span>${state.wood}</span></div>
+                  <div class="stat-row"><span class="label">Grain</span><span>${state.grain}</span></div>
+                  <div class="stat-row"><span class="label">Seeds</span><span>${state.seeds}</span></div>
+                  <div class="stat-row"><span class="label">Fur</span><span>${state.fur}</span></div>
+                  <div class="stat-row"><span class="label">Cloth</span><span>${state.cloth}</span></div>
+                  <div class="stat-row"><span class="label">Tools</span><span>${state.tools}</span></div>
+                  <div class="stat-row"><span class="label">Fences</span><span>${state.fences}</span></div>
+                  <div class="stat-row"><span class="label">Gold</span><span>${state.gold}</span></div>
+                </div>
+                <div class="stat-group">
+                  <h4>Farm</h4>
+                  <div class="stat-row"><span class="label">Cleared plots</span><span>${state.clearedPlots}</span></div>
+                  <div class="stat-row"><span class="label">Planted plots</span><span>${state.plantedPlots.length}</span></div>
+                  <div class="stat-row"><span class="label">Ready plots</span><span>${readyCount}</span></div>
+                </div>
+                ${progressRows.length ? `<div class="stat-group"><h4>Progress</h4>${progressRows.join('')}</div>` : ''}
+              </div>
+            </section>
+
+            ${state.gameOver ? '<p class="game-over">Game Over: your settlement can no longer continue.</p>' : ''}
+
+            <section>
+              <h3>Farm & Wilderness</h3>
+              <div class="actions">
+                ${btn('Clear Land', 'clearLand', '-3 energy, 4h')}
+                ${btn('Plant Crops', 'plantCrops', '-2 energy, 2h, -1 seed')}
+                ${btn('Chop Wood', 'chopWood', '-2 energy, 2h')}
+                ${btn('Gather Forage', 'gatherForage', '-1 energy, 2h')}
+                ${btn('Hunt Wild Game', 'huntWildGame', '-3 energy, 3h')}
+                ${readyCount > 0 ? btn('Harvest', 'harvest', '-2 energy, 3h') : ''}
+              </div>
+            </section>
+
+            <section>
+              <h3>Crafting</h3>
+              <div class="actions">
+                ${btn('Craft Basket', 'craftBasket', '-1 energy, 2h, -6 wood')}
+                ${btn('Sharpen Spear', 'sharpenSpear', '-1 energy, 1h, -2 wood')}
+                ${btn('Tan Fur to Cloth', 'tanFurToCloth', '-1 energy, 2h, -2 fur, +1 cloth')}
+              </div>
+            </section>
+
+            ${buildingsVisible ? `
+            <section>
+              <h3>Buildings</h3>
+              <div class="actions">
+                ${!state.hasCookfire ? btn('Build Cookpot', 'buildCookfire', '2 day build, -2 energy, 3h, -10 wood') : ''}
+                ${state.hasCookfire ? btn('Cook Meal', 'cookMeal', '-1 energy, 1h, -5 grain, +6 food') : ''}
+                ${btn('Build Lean-to', 'buildLeanTo', '3 day build, -3 energy, 5h, -30 wood')}
+                ${state.shelterLevel >= 1 ? btn('Build Cottage', 'buildCottage', '4 day build, -4 energy, 6h, -80 wood, -30 gold') : ''}
+                ${!state.hasMarketStall && canUnlockMarket ? btn('Build Market Stall', 'buildMarketStall', '3 day build, -3 energy, 5h, -20 wood, -10 grain') : ''}
+              </div>
+            </section>
+            ` : ''}
+
+            <section>
+              <h3>Life</h3>
+              <div class="actions">${btn('Rest', 'rest', '+3 energy, 2h')}</div>
+            </section>
+
+            ${state.hasMarketStall ? `
+            <section>
+              <h3>Market Stall (Sell Only)</h3>
+              <p class="muted">Set your own listing: choose item, quantity, and gold per unit.</p>
+              <div class="actions">
+                <select id="stall-item">${SELLABLE_ITEMS.map((item) => `<option value="${item.key}">${itemLabel(item.key)}</option>`).join('')}</select>
+                <input id="stall-qty" type="number" min="1" value="10" />
+                <input id="stall-price" type="number" min="1" value="1" />
+                ${btn('List in Stall', 'listStallOffer')}
+              </div>
+              ${listingsMarkup}
+            </section>
+            ` : ''}
+
+            <section>
+              <button class="action-btn" data-action="endDay">End Day</button>
+              <button class="action-btn" data-action="newSettlement">New Settlement</button>
+            </section>
+          </section>
+        </div>
+
+        ${state.hasMarketStall && state.travelerOffers.length ? `
+        <section class="traveler-panel">
+          <h3>Travelers in Town (Buy From Traveler)</h3>
+          <div class="traveler-grid">
+            ${state.travelerOffers.map((offer) => `
+              <article class="traveler-card">
+                <p><strong>${offer.qty} ${itemLabel(offer.item)}</strong></p>
+                <p>${offer.goldPrice} gold</p>
+                <div class="actions compact">
+                  ${btn('Buy', `buyTraveler:${offer.id}`)}
+                  ${offer.barter ? btn(`Haggle (${offer.barter.qty} ${itemLabel(offer.barter.item)})`, `haggleTraveler:${offer.id}`) : ''}
+                </div>
+              </article>
+            `).join('')}
+          </div>
+        </section>
+        ` : ''}
+      </main>
+    `;
+  }
 
   app.querySelectorAll('button[data-action]').forEach((button) => {
     button.addEventListener('click', () => applyAction(button.dataset.action));
