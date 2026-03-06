@@ -78,6 +78,7 @@ const createInitialState = () => ({
   hasMarketStall: false,
   hasBasket: false,
   hasSharpSpear: false,
+  spearUses: 0,
   hasKnife: false,
   hasWheelbarrow: false,
   hasHandmadeAxe: false,
@@ -226,8 +227,8 @@ const advancementChains = [
   {
     name: 'Sleeping Chain',
     steps: [
-      { id: 'handmade_sleeping_spot', label: 'Handmade Sleeping Spot', desc: '10 grass. Restores more energy than sleeping on the ground.', requires: [] },
-      { id: 'handmade_bed', label: 'Handmade Bed', desc: '10 wood + 4 rope + 10 fur. Restores full energy.', requires: ['handmade_sleeping_spot'] },
+      { id: 'handmade_sleeping_spot', label: 'Handmade Sleeping Spot', desc: '10 grass. Resting here restores you to 11 energy.', requires: [] },
+      { id: 'handmade_bed', label: 'Handmade Bed', desc: '10 wood + 4 rope + 10 cloth. Resting here restores you to 15 energy and gives +2 hours.', requires: ['handmade_sleeping_spot'] },
     ],
   },
   {
@@ -475,12 +476,13 @@ function applyAction(action) {
 
   if (action === 'sharpenSpear') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
-    if (!gate.allowed || state.hasSharpSpear || state.sticks < 2 || state.stones < 1) return;
+    if (!gate.allowed || state.spearUses > 0 || state.sticks < 2 || state.stones < 1) return;
     spendCosts({ energyCost: 1, hoursCost: 1 });
     state.sticks = clamp(state.sticks - 2, 0, 9999);
     state.stones = clamp(state.stones - 1, 0, 9999);
     state.hasSharpSpear = true;
-    logs.push('You crafted a spear from sticks and stones (-2 sticks, -1 stone).');
+    state.spearUses = 3;
+    logs.push('You crafted a spear from sticks and stones (-2 sticks, -1 stone). It has 3 hunting uses.');
   }
 
   if (action === 'gatherForage') {
@@ -496,9 +498,13 @@ function applyAction(action) {
 
   if (action === 'huntWildGame') {
     const gate = canDoAction({ energyCost: 3, hoursCost: 3 });
-    if (!gate.allowed || (!state.hasSharpSpear && !state.hasKnife)) return;
+    if (!gate.allowed || (state.spearUses <= 0 && !state.hasKnife)) return;
     spendCosts({ energyCost: 3, hoursCost: 3 });
-    if (state.hasSharpSpear && !state.hasKnife) state.hasSharpSpear = false;
+    if (state.spearUses > 0) {
+      state.spearUses = clamp(state.spearUses - 1, 0, 3);
+      state.hasSharpSpear = state.spearUses > 0;
+      if (state.spearUses === 0) logs.push('Your spear broke after this hunt.');
+    }
     if (Math.random() < 0.65) {
       const meat = randInt(5, 9);
       const furYield = randInt(1, 2);
@@ -580,11 +586,20 @@ function applyAction(action) {
 
   if (action === 'gatherRocks') {
     const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
-    if (!gate.allowed || !state.hasPickaxe) return;
+    if (!gate.allowed || (!state.hasHandmadePickaxe && !state.hasPickaxe)) return;
     spendCosts({ energyCost: 2, hoursCost: 2 });
-    const found = randInt(2, 4);
+    const found = state.hasPickaxe ? randInt(2, 4) : randInt(1, 3);
     state.rocks = clamp(state.rocks + found, 0, 9999);
-    logs.push(`You gathered +${found} rocks.`);
+    logs.push(`You gathered +${found} rocks with your ${state.hasPickaxe ? 'pickaxe' : 'handmade pickaxe'}.`);
+  }
+
+  if (action === 'crackStonesToRocks') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || (!state.hasHandmadePickaxe && !state.hasPickaxe) || state.stones < 2) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.stones = clamp(state.stones - 2, 0, 9999);
+    state.rocks = clamp(state.rocks + 1, 0, 9999);
+    logs.push('You cracked 2 stones into 1 rock.');
   }
 
   if (action === 'buildHandmadeFire') {
@@ -609,13 +624,13 @@ function applyAction(action) {
 
   if (action === 'buildHandmadeBed') {
     const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
-    if (!gate.allowed || !state.hasSleepingSpot || state.hasHandmadeBed || state.wood < 10 || state.rope < 4 || state.fur < 10) return;
+    if (!gate.allowed || !state.hasSleepingSpot || state.hasHandmadeBed || state.wood < 10 || state.rope < 4 || state.cloth < 10) return;
     spendCosts({ energyCost: 2, hoursCost: 2 });
     state.wood = clamp(state.wood - 10, 0, 9999);
     state.rope = clamp(state.rope - 4, 0, 9999);
-    state.fur = clamp(state.fur - 10, 0, 9999);
+    state.cloth = clamp(state.cloth - 10, 0, 9999);
     state.hasHandmadeBed = true;
-    logs.push('You built a handmade bed (-10 wood, -4 rope, -10 fur).');
+    logs.push('You built a handmade bed (-10 wood, -4 rope, -10 cloth).');
   }
 
   if (action === 'craftKnife') {
@@ -634,6 +649,15 @@ function applyAction(action) {
     state.fur = clamp(state.fur - 2, 0, 9999);
     state.cloth = clamp(state.cloth + 1, 0, 9999);
     logs.push('You processed 2 fur into 1 cloth strip for repairs and bandages.');
+  }
+
+  if (action === 'healWithBandage') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || state.cloth < 1 || state.health >= 10) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.cloth = clamp(state.cloth - 1, 0, 9999);
+    state.health = clamp(state.health + 1, 0, 10);
+    logs.push('You used 1 cloth bandage and recovered +1 health.');
   }
 
   if (action === 'buildCookfire') {
@@ -670,14 +694,17 @@ function applyAction(action) {
     if (!gate.allowed) return;
     spendCosts({ energyCost: 0, hoursCost: 2 });
     if (state.hasHandmadeBed) {
-      state.energy = state.energyMax;
-      logs.push('You rested in your handmade bed and restored full energy.');
+      state.energyMax = Math.max(state.energyMax, 15);
+      state.energy = 15;
+      state.hoursUsed = clamp(state.hoursUsed - 2, 0, state.hoursPerDay);
+      logs.push('You rested in your handmade bed, recovered to 15 energy, and gained +2 hours.');
     } else if (state.hasSleepingSpot) {
-      state.energy = clamp(state.energy + 5, 0, state.energyMax);
-      logs.push('You rested on your handmade sleeping spot and recovered extra energy.');
+      state.energyMax = Math.max(state.energyMax, 11);
+      state.energy = 11;
+      logs.push('You rested on your handmade sleeping spot and recovered to 11 energy.');
     } else {
-      state.energy = clamp(state.energy + 3, 0, state.energyMax);
-      logs.push('You rested and recovered energy.');
+      state.energy = 10;
+      logs.push('You slept on the ground and recovered to 10 energy.');
     }
     if (state.toolDulled && Math.random() < 0.3) state.toolDulled = false;
   }
@@ -819,16 +846,23 @@ function endDay() {
 
   if (state.shelterLevel === 0) {
     const canKeepFire = state.hasHandmadeFire || state.hasCookfire;
-    if (canKeepFire && state.wood >= 2) {
-      state.wood = clamp(state.wood - 2, 0, 9999);
+    const canFuelWithWood = state.wood >= 2;
+    const canFuelWithSticks = state.sticks >= 5;
+    if (canKeepFire && (canFuelWithWood || canFuelWithSticks)) {
+      if (canFuelWithWood) {
+        state.wood = clamp(state.wood - 2, 0, 9999);
+        logs.push('You kept your camp fire going with 2 wood.');
+      } else {
+        state.sticks = clamp(state.sticks - 5, 0, 9999);
+        logs.push('You kept your camp fire going with 5 sticks.');
+      }
       state.warmth = clamp(state.warmth + 1, 0, 10);
-      logs.push('You kept your camp fire going with 2 wood.');
     } else {
       warmthLoss += 2;
       if (!canKeepFire) {
         logs.push('You have no camp fire yet. The night cold bites hard.');
       } else {
-        logs.push('No wood for your camp fire. The cold closes in.');
+        logs.push('No fuel for your camp fire (need 2 wood or 5 sticks). The cold closes in.');
       }
       const attackRoll = Math.random();
       if (attackRoll < 0.7) {
@@ -996,7 +1030,15 @@ function actionStatus(actionName) {
   if (actionName === 'gatherRocks') {
     const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
-    if (!state.hasPickaxe) return { disabled: true, reason: 'Requires Pickaxe' };
+    if (!state.hasHandmadePickaxe && !state.hasPickaxe) return { disabled: true, reason: 'Requires handmade pickaxe or pickaxe' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'crackStonesToRocks') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasHandmadePickaxe && !state.hasPickaxe) return { disabled: true, reason: 'Requires handmade pickaxe or pickaxe' };
+    if (state.stones < 2) return { disabled: true, reason: 'Needs 2 stones' };
     return { disabled: false, reason: '' };
   }
 
@@ -1028,7 +1070,7 @@ function actionStatus(actionName) {
   if (actionName === 'sharpenSpear') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
-    if (state.hasSharpSpear) return { disabled: true, reason: 'Spear is ready' };
+    if (state.spearUses > 0) return { disabled: true, reason: `Spear ready (${state.spearUses} uses left)` };
     if (state.sticks < 2) return { disabled: true, reason: 'Needs 2 sticks' };
     if (state.stones < 1) return { disabled: true, reason: 'Needs 1 stone' };
     return { disabled: false, reason: '' };
@@ -1053,7 +1095,7 @@ function actionStatus(actionName) {
   if (actionName === 'huntWildGame') {
     const gate = canDoAction({ energyCost: 3, hoursCost: 3 });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
-    if (!state.hasSharpSpear && !state.hasKnife) return { disabled: true, reason: 'Need spear or knife first' };
+    if (state.spearUses <= 0 && !state.hasKnife) return { disabled: true, reason: 'Need spear or knife first' };
     return { disabled: false, reason: '' };
   }
 
@@ -1064,6 +1106,13 @@ function actionStatus(actionName) {
     return { disabled: false, reason: '' };
   }
 
+  if (actionName === 'healWithBandage') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.cloth < 1) return { disabled: true, reason: 'Need 1 cloth bandage' };
+    if (state.health >= 10) return { disabled: true, reason: 'Health is already full' };
+    return { disabled: false, reason: '' };
+  }
 
   if (actionName === 'craftHandmadeAxe') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
@@ -1120,7 +1169,7 @@ function actionStatus(actionName) {
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
     if (!state.hasSleepingSpot) return { disabled: true, reason: 'Needs sleeping spot first' };
     if (state.hasHandmadeBed) return { disabled: true, reason: 'Already built' };
-    if (state.wood < 10 || state.rope < 4 || state.fur < 10) return { disabled: true, reason: 'Needs 10 wood + 4 rope + 10 fur' };
+    if (state.wood < 10 || state.rope < 4 || state.cloth < 10) return { disabled: true, reason: 'Needs 10 wood + 4 rope + 10 cloth' };
     return { disabled: false, reason: '' };
   }
 
@@ -1191,9 +1240,30 @@ function actionStatus(actionName) {
   return { disabled: false, reason: '' };
 }
 
+function isActionDiscovered(actionName) {
+  if (actionName === 'chopWood') return state.hasHandmadeAxe || state.hasAxe;
+  if (actionName === 'gatherRocks') return state.hasHandmadePickaxe || state.hasPickaxe;
+  if (actionName === 'crackStonesToRocks') return state.hasHandmadePickaxe || state.hasPickaxe;
+  if (actionName === 'gatherForage') return state.hasBasket || state.hasWheelbarrow;
+  if (actionName === 'huntWildGame') return state.spearUses > 0 || state.hasKnife;
+
+  if (actionName === 'craftWheelbarrow') return state.hasBasket;
+  if (actionName === 'craftAxe') return state.hasHandmadeAxe;
+  if (actionName === 'craftPickaxe') return state.hasHandmadePickaxe;
+  if (actionName === 'craftKnife') return state.hasSharpSpear;
+
+  if (actionName === 'buildCookfire') return state.hasHandmadeFire;
+  if (actionName === 'cookMeal') return state.hasCookfire;
+  if (actionName === 'buildCottage') return state.shelterLevel >= 1;
+  if (actionName === 'buildHandmadeBed') return state.hasSleepingSpot;
+  if (actionName === 'healWithBandage') return state.cloth > 0 || state.health < 10;
+
+  return true;
+}
+
 function btn(label, actionName, costsText) {
+  if (!isActionDiscovered(actionName)) return '';
   const { disabled, reason } = actionStatus(actionName);
-  if (disabled) return '';
   return `<button class="action-btn" data-action="${actionName}" ${disabled ? 'disabled' : ''} title="${reason || ''}">${label}${costsText ? ` (${costsText})` : ''}</button>`;
 }
 
@@ -1215,7 +1285,7 @@ function render() {
   if (state.hasCookfire) progressRows.push('<div class="stat-row"><span class="label">Cooking Fire</span><span>Built</span></div>');
   if (state.hasMarketStall) progressRows.push('<div class="stat-row"><span class="label">Market</span><span>Built</span></div>');
   if (state.hasBasket) progressRows.push('<div class="stat-row"><span class="label">Basket</span><span>Ready</span></div>');
-  if (state.hasSharpSpear) progressRows.push('<div class="stat-row"><span class="label">Spear</span><span>Ready</span></div>');
+  if (state.spearUses > 0) progressRows.push(`<div class="stat-row"><span class="label">Spear</span><span>${state.spearUses} use(s)</span></div>`);
   if (state.hasKnife) progressRows.push('<div class="stat-row"><span class="label">Knife</span><span>Ready</span></div>');
   if (state.hasAxe) progressRows.push('<div class="stat-row"><span class="label">Axe</span><span>Ready</span></div>');
   if (state.hasPickaxe) progressRows.push('<div class="stat-row"><span class="label">Pickaxe</span><span>Ready</span></div>');
@@ -1357,7 +1427,7 @@ function render() {
                 ${btn('Gather Grass', 'gatherGrass', '-1 energy, 1h')}
                 ${btn('Gather Seeds', 'gatherSeeds', '-1 energy, 1h')}
                 ${btn('Plant Crops', 'plantCrops', '-2 energy, 2h, -1 seed')}
-                ${btn('Gather Rocks', 'gatherRocks', '-2 energy, 2h (needs Pickaxe)')}
+                ${btn('Gather Rocks', 'gatherRocks', '-2 energy, 2h (needs Handmade Pickaxe/Pickaxe)')}
                 ${btn('Chop Wood', 'chopWood', '-2 energy, 2h (needs Axe/Handmade Axe)')}
                 ${btn('Gather Forage', 'gatherForage', '-1 energy, 2h')}
                 ${btn('Hunt Wild Game', 'huntWildGame', '-3 energy, 3h')}
@@ -1375,7 +1445,8 @@ function render() {
                 ${btn('Craft Axe', 'craftAxe', '-1 energy, 2h, -6 wood, -1 rope')}
                 ${btn('Craft Handmade Pickaxe', 'craftHandmadePickaxe', '-1 energy, 1h, -3 sticks, -2 stones')}
                 ${btn('Craft Pickaxe', 'craftPickaxe', '-1 energy, 2h, -6 wood, -1 rope')}
-                ${btn('Craft Spear', 'sharpenSpear', '-1 energy, 1h, -2 sticks, -1 stone')}
+                ${btn('Crack Stones to Rocks', 'crackStonesToRocks', '-1 energy, 1h, -2 stones, +1 rock')}
+                ${btn('Craft Spear', 'sharpenSpear', '-1 energy, 1h, -2 sticks, -1 stone (3 uses)')}
                 ${btn('Craft Knife', 'craftKnife', '-1 energy, 1h, -2 stones (from spear path)')}
                 ${btn('Tan Fur to Cloth', 'tanFurToCloth', '-1 energy, 2h, -2 fur, +1 cloth')}
               </div>
@@ -1397,7 +1468,7 @@ function render() {
 
             <section>
               <h3>Life</h3>
-              <div class="actions">${btn('Build Sleeping Spot', 'buildSleepingSpot', '-1 energy, 1h, -10 grass')} ${btn('Build Handmade Bed', 'buildHandmadeBed', '-2 energy, 2h, -10 wood, -4 rope, -10 fur')} ${btn('Rest', 'rest', '+energy, 2h')}</div>
+              <div class="actions">${btn('Build Sleeping Spot', 'buildSleepingSpot', '-1 energy, 1h, -10 grass')} ${btn('Build Handmade Bed', 'buildHandmadeBed', '-2 energy, 2h, -10 wood, -4 rope, -10 cloth')} ${btn('Rest', 'rest', 'Ground: 10 energy · Spot: 11 energy · Bed: 15 energy +2h')} ${btn('Use Bandage', 'healWithBandage', '-1 energy, 1h, -1 cloth, +1 health')}</div>
             </section>
 
             ${state.hasMarketStall ? `
