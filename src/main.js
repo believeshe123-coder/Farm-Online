@@ -586,11 +586,20 @@ function applyAction(action) {
 
   if (action === 'gatherRocks') {
     const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
-    if (!gate.allowed || !state.hasPickaxe) return;
+    if (!gate.allowed || (!state.hasHandmadePickaxe && !state.hasPickaxe)) return;
     spendCosts({ energyCost: 2, hoursCost: 2 });
-    const found = randInt(2, 4);
+    const found = state.hasPickaxe ? randInt(2, 4) : randInt(1, 3);
     state.rocks = clamp(state.rocks + found, 0, 9999);
-    logs.push(`You gathered +${found} rocks.`);
+    logs.push(`You gathered +${found} rocks with your ${state.hasPickaxe ? 'pickaxe' : 'handmade pickaxe'}.`);
+  }
+
+  if (action === 'crackStonesToRocks') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || (!state.hasHandmadePickaxe && !state.hasPickaxe) || state.stones < 2) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.stones = clamp(state.stones - 2, 0, 9999);
+    state.rocks = clamp(state.rocks + 1, 0, 9999);
+    logs.push('You cracked 2 stones into 1 rock.');
   }
 
   if (action === 'buildHandmadeFire') {
@@ -1012,7 +1021,15 @@ function actionStatus(actionName) {
   if (actionName === 'gatherRocks') {
     const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
-    if (!state.hasPickaxe) return { disabled: true, reason: 'Requires Pickaxe' };
+    if (!state.hasHandmadePickaxe && !state.hasPickaxe) return { disabled: true, reason: 'Requires handmade pickaxe or pickaxe' };
+    return { disabled: false, reason: '' };
+  }
+
+  if (actionName === 'crackStonesToRocks') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (!state.hasHandmadePickaxe && !state.hasPickaxe) return { disabled: true, reason: 'Requires handmade pickaxe or pickaxe' };
+    if (state.stones < 2) return { disabled: true, reason: 'Needs 2 stones' };
     return { disabled: false, reason: '' };
   }
 
@@ -1209,7 +1226,8 @@ function actionStatus(actionName) {
 
 function isActionDiscovered(actionName) {
   if (actionName === 'chopWood') return state.hasHandmadeAxe || state.hasAxe;
-  if (actionName === 'gatherRocks') return state.hasPickaxe;
+  if (actionName === 'gatherRocks') return state.hasHandmadePickaxe || state.hasPickaxe;
+  if (actionName === 'crackStonesToRocks') return state.hasHandmadePickaxe || state.hasPickaxe;
   if (actionName === 'gatherForage') return state.hasBasket || state.hasWheelbarrow;
   if (actionName === 'huntWildGame') return state.spearUses > 0 || state.hasKnife;
 
@@ -1392,7 +1410,7 @@ function render() {
                 ${btn('Gather Grass', 'gatherGrass', '-1 energy, 1h')}
                 ${btn('Gather Seeds', 'gatherSeeds', '-1 energy, 1h')}
                 ${btn('Plant Crops', 'plantCrops', '-2 energy, 2h, -1 seed')}
-                ${btn('Gather Rocks', 'gatherRocks', '-2 energy, 2h (needs Pickaxe)')}
+                ${btn('Gather Rocks', 'gatherRocks', '-2 energy, 2h (needs Handmade Pickaxe/Pickaxe)')}
                 ${btn('Chop Wood', 'chopWood', '-2 energy, 2h (needs Axe/Handmade Axe)')}
                 ${btn('Gather Forage', 'gatherForage', '-1 energy, 2h')}
                 ${btn('Hunt Wild Game', 'huntWildGame', '-3 energy, 3h')}
@@ -1410,6 +1428,7 @@ function render() {
                 ${btn('Craft Axe', 'craftAxe', '-1 energy, 2h, -6 wood, -1 rope')}
                 ${btn('Craft Handmade Pickaxe', 'craftHandmadePickaxe', '-1 energy, 1h, -3 sticks, -2 stones')}
                 ${btn('Craft Pickaxe', 'craftPickaxe', '-1 energy, 2h, -6 wood, -1 rope')}
+                ${btn('Crack Stones to Rocks', 'crackStonesToRocks', '-1 energy, 1h, -2 stones, +1 rock')}
                 ${btn('Craft Spear', 'sharpenSpear', '-1 energy, 1h, -2 sticks, -1 stone (3 uses)')}
                 ${btn('Craft Knife', 'craftKnife', '-1 energy, 1h, -2 stones (from spear path)')}
                 ${btn('Tan Fur to Cloth', 'tanFurToCloth', '-1 energy, 2h, -2 fur, +1 cloth')}
