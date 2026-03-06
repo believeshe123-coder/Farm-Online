@@ -651,6 +651,15 @@ function applyAction(action) {
     logs.push('You processed 2 fur into 1 cloth strip for repairs and bandages.');
   }
 
+  if (action === 'healWithBandage') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed || state.cloth < 1 || state.health >= 10) return;
+    spendCosts({ energyCost: 1, hoursCost: 1 });
+    state.cloth = clamp(state.cloth - 1, 0, 9999);
+    state.health = clamp(state.health + 1, 0, 10);
+    logs.push('You used 1 cloth bandage and recovered +1 health.');
+  }
+
   if (action === 'buildCookfire') {
     if (state.hasCookfire || !state.hasHandmadeFire) return;
     startBuild('cookfire', logs);
@@ -1097,6 +1106,13 @@ function actionStatus(actionName) {
     return { disabled: false, reason: '' };
   }
 
+  if (actionName === 'healWithBandage') {
+    const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
+    if (!gate.allowed) return { disabled: true, reason: gate.reason };
+    if (state.cloth < 1) return { disabled: true, reason: 'Need 1 cloth bandage' };
+    if (state.health >= 10) return { disabled: true, reason: 'Health is already full' };
+    return { disabled: false, reason: '' };
+  }
 
   if (actionName === 'craftHandmadeAxe') {
     const gate = canDoAction({ energyCost: 1, hoursCost: 1 });
@@ -1240,6 +1256,7 @@ function isActionDiscovered(actionName) {
   if (actionName === 'cookMeal') return state.hasCookfire;
   if (actionName === 'buildCottage') return state.shelterLevel >= 1;
   if (actionName === 'buildHandmadeBed') return state.hasSleepingSpot;
+  if (actionName === 'healWithBandage') return state.cloth > 0 || state.health < 10;
 
   return true;
 }
@@ -1451,7 +1468,7 @@ function render() {
 
             <section>
               <h3>Life</h3>
-              <div class="actions">${btn('Build Sleeping Spot', 'buildSleepingSpot', '-1 energy, 1h, -10 grass')} ${btn('Build Handmade Bed', 'buildHandmadeBed', '-2 energy, 2h, -10 wood, -4 rope, -10 cloth')} ${btn('Rest', 'rest', 'Ground: 10 energy · Spot: 11 energy · Bed: 15 energy +2h')}</div>
+              <div class="actions">${btn('Build Sleeping Spot', 'buildSleepingSpot', '-1 energy, 1h, -10 grass')} ${btn('Build Handmade Bed', 'buildHandmadeBed', '-2 energy, 2h, -10 wood, -4 rope, -10 cloth')} ${btn('Rest', 'rest', 'Ground: 10 energy · Spot: 11 energy · Bed: 15 energy +2h')} ${btn('Use Bandage', 'healWithBandage', '-1 energy, 1h, -1 cloth, +1 health')}</div>
             </section>
 
             ${state.hasMarketStall ? `
