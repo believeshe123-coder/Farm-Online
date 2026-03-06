@@ -59,20 +59,17 @@ const createInitialState = () => ({
   hunger: 2,
   health: 10,
   warmth: 8,
-  food: 16,
-  sticks: 4,
-  stones: 4,
-  rocks: 0,
-  grass: 4,
-  rope: 0,
-  wood: 12,
+  food: 0,
   sticks: 0,
   stones: 0,
+  rocks: 0,
   grass: 0,
+  rope: 0,
+  wood: 0,
   grain: 0,
-  seeds: 2,
+  seeds: 0,
   cloth: 0,
-  tools: 1,
+  tools: 0,
   fences: 0,
   fur: 0,
   gold: 0,
@@ -102,6 +99,7 @@ const createInitialState = () => ({
   selectedAdvancementNode: null,
   gameOver: false,
   dailyChronicle: ['A new settlement begins.'],
+  chronicleLog: ['A new settlement begins.'],
   townChronicle: ['Year 1: Settlement founded.'],
 });
 
@@ -458,9 +456,9 @@ function applyAction(action) {
 
   if (action === 'chopWood') {
     const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
-    if (!gate.allowed || !state.hasAxe) return;
+    if (!gate.allowed || (!state.hasHandmadeAxe && !state.hasAxe)) return;
     spendCosts({ energyCost: 2, hoursCost: 2 });
-    let yieldWood = randInt(5, 9);
+    let yieldWood = state.hasAxe ? randInt(5, 7) : randInt(2, 4);
     if (state.toolDulled) yieldWood = Math.max(0, yieldWood - 2);
     state.wood += yieldWood;
     logs.push(`You chopped wood and gained +${yieldWood} wood.`);
@@ -696,7 +694,9 @@ function applyAction(action) {
   }
 
   if (logs.length) {
-    state.dailyChronicle = [...logs, ...state.dailyChronicle].slice(0, 8);
+    state.dailyChronicle = logs;
+    state.chronicleLog.unshift(...logs);
+    state.chronicleLog = state.chronicleLog.slice(0, 300);
   }
 
   render();
@@ -818,13 +818,18 @@ function endDay() {
   if (season === 'Winter') warmthLoss = Math.max(0, 2 - state.shelterLevel);
 
   if (state.shelterLevel === 0) {
-    if (state.wood >= 2) {
+    const canKeepFire = state.hasHandmadeFire || state.hasCookfire;
+    if (canKeepFire && state.wood >= 2) {
       state.wood = clamp(state.wood - 2, 0, 9999);
       state.warmth = clamp(state.warmth + 1, 0, 10);
-      logs.push('You burned 2 wood in an outdoor fire to stay warm.');
+      logs.push('You kept your camp fire going with 2 wood.');
     } else {
       warmthLoss += 2;
-      logs.push('No wood for a night fire. The cold closes in.');
+      if (!canKeepFire) {
+        logs.push('You have no camp fire yet. The night cold bites hard.');
+      } else {
+        logs.push('No wood for your camp fire. The cold closes in.');
+      }
       const attackRoll = Math.random();
       if (attackRoll < 0.7) {
         const damage = attackRoll < 0.2 ? 2 : 1;
@@ -905,6 +910,8 @@ function endDay() {
   }
 
   state.dailyChronicle = logs;
+  state.chronicleLog.unshift(...logs);
+  state.chronicleLog = state.chronicleLog.slice(0, 300);
   state.townChronicle = state.townChronicle.slice(0, 24);
 
   render();
@@ -962,7 +969,7 @@ function actionStatus(actionName) {
   if (actionName === 'chopWood') {
     const gate = canDoAction({ energyCost: 2, hoursCost: 2 });
     if (!gate.allowed) return { disabled: true, reason: gate.reason };
-    if (!state.hasAxe) return { disabled: true, reason: 'Requires Axe' };
+    if (!state.hasHandmadeAxe && !state.hasAxe) return { disabled: true, reason: 'Requires handmade axe or axe' };
     return { disabled: false, reason: '' };
   }
 
@@ -1200,7 +1207,7 @@ function render() {
   const energyCritical = state.energy <= 3;
   const hoursRemaining = state.hoursPerDay - state.hoursUsed;
   const hoursCritical = hoursRemaining <= 3;
-  const dailyChroniclePreview = state.dailyChronicle.slice(-6);
+  const chronicleLogPreview = state.chronicleLog;
   const townChroniclePreview = state.townChronicle.slice(-6);
 
   const progressRows = [];
@@ -1284,8 +1291,8 @@ function render() {
       <main class="page main-page">
         <div class="layout">
           <aside class="chronicles-column">
-            <h3>Daily Chronicle</h3>
-            <ul>${dailyChroniclePreview.map((line) => `<li>${line}</li>`).join('')}</ul>
+            <h3>Chronicle Log</h3>
+            <div class="chronicle-log"><ul>${chronicleLogPreview.map((line) => `<li>${line}</li>`).join('')}</ul></div>
 
             <h3>Town Chronicle</h3>
             <ul>${townChroniclePreview.map((line) => `<li>${line}</li>`).join('')}</ul>
@@ -1350,8 +1357,8 @@ function render() {
                 ${btn('Gather Grass', 'gatherGrass', '-1 energy, 1h')}
                 ${btn('Gather Seeds', 'gatherSeeds', '-1 energy, 1h')}
                 ${btn('Plant Crops', 'plantCrops', '-2 energy, 2h, -1 seed')}
-                ${btn('Gather Rocks', 'gatherRocks', '-2 energy, 2h')}
-                ${btn('Chop Wood', 'chopWood', '-2 energy, 2h (needs Axe)')}
+                ${btn('Gather Rocks', 'gatherRocks', '-2 energy, 2h (needs Pickaxe)')}
+                ${btn('Chop Wood', 'chopWood', '-2 energy, 2h (needs Axe/Handmade Axe)')}
                 ${btn('Gather Forage', 'gatherForage', '-1 energy, 2h')}
                 ${btn('Hunt Wild Game', 'huntWildGame', '-3 energy, 3h')}
                 ${readyCount > 0 ? btn('Harvest', 'harvest', '-2 energy, 3h') : ''}
