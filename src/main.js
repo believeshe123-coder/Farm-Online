@@ -538,17 +538,6 @@ function closeTravelerChatExcept(offerId) {
   }));
 }
 
-function getCottageRoster(cottageId) {
-  const roster = [];
-  if (cottageId === 1) {
-    roster.push({ name: 'You', role: 'Founder' });
-    if (state.hasLifePartner) roster.push({ name: 'Life Partner', role: 'Partner' });
-  }
-  state.townsfolk.filter((person) => person.cottageId === cottageId).forEach((person) => roster.push({ name: person.name || 'Resident', role: person.role }));
-  state.children.filter((child) => child.cottageId === cottageId).forEach((child, index) => roster.push({ name: child.name || `Child ${index + 1}`, role: 'Child' }));
-  return roster;
-}
-
 function startBuild(type, logs) {
   const project = BUILDING_PROJECTS[type];
   const gate = canDoAction({ energyCost: project.energyCost });
@@ -563,7 +552,7 @@ function startBuild(type, logs) {
 }
 
 function applyAction(action) {
-  if (state.gameOver && !['newSettlement', 'openAdvancementPage', 'openMainPage', 'openTownMap'].includes(action)) return;
+  if (state.gameOver && !['newSettlement', 'openAdvancementPage', 'openMainPage'].includes(action)) return;
 
   const logs = [];
   if (action === 'openAdvancementPage') {
@@ -574,20 +563,6 @@ function applyAction(action) {
 
   if (action === 'openMainPage') {
     state.activePage = 'main';
-    render();
-    return;
-  }
-
-  if (action === 'openTownMap') {
-    state.activePage = 'townMap';
-    if (!state.selectedCottageId && state.cottagesCount > 0) state.selectedCottageId = 1;
-    render();
-    return;
-  }
-
-  if (action.startsWith('selectCottage:')) {
-    const cottageId = Number(action.replace('selectCottage:', ''));
-    if (!Number.isNaN(cottageId)) state.selectedCottageId = cottageId;
     render();
     return;
   }
@@ -1718,8 +1693,6 @@ function actionStatus(actionName) {
 
   if (actionName === 'openAdvancementPage') return { disabled: false, reason: '' };
   if (actionName === 'openMainPage') return { disabled: false, reason: '' };
-  if (actionName === 'openTownMap') return { disabled: false, reason: '' };
-  if (actionName.startsWith('selectCottage:')) return { disabled: false, reason: '' };
   if (actionName === 'endDay') return { disabled: false, reason: '' };
   if (actionName === 'newSettlement') return { disabled: false, reason: '' };
 
@@ -1837,35 +1810,11 @@ function render() {
     ? `<section class="traveler-chat-popout"><h4>Haggle Chat — ${openTravelerOffer.qty} ${itemLabel(openTravelerOffer.item)}</h4><p class="muted"><strong>Trader:</strong> ${openTravelerOffer.traderMessage}</p><div class="traveler-chat"><div class="actions compact"><input id="haggle-gold-${openTravelerOffer.id}" type="number" min="1" value="${Math.max(1, openTravelerOffer.goldPrice - 1)}" /> ${btn('Offer Gold', `haggleGoldTraveler:${openTravelerOffer.id}`)} ${btn('Will you trade with me?', `askTradeTraveler:${openTravelerOffer.id}`)}</div><div class="actions compact"><select id="haggle-item-${openTravelerOffer.id}">${['wood', 'grain', 'food', 'sticks', 'stones', 'cloth', 'fur', 'rope', 'fences', 'tools', 'bandages', 'seeds', 'grass'].map((key) => `<option value="${key}">${itemLabel(key)}</option>`).join('')}</select><input id="haggle-qty-${openTravelerOffer.id}" type="number" min="1" value="3" /> ${btn('Offer Trade', `proposeTradeTraveler:${openTravelerOffer.id}`)} ${openTravelerOffer.demand ? btn(`Accept Terms (${openTravelerOffer.demand.qty} ${itemLabel(openTravelerOffer.demand.item)})`, `acceptTravelerDemand:${openTravelerOffer.id}`) : ''}</div></div></section>`
     : '';
 
-  const builtMapFeatures = [
-    state.hasSleepingSpot ? 'Sleeping Spot' : '',
-    state.hasHandmadeFire ? 'Handmade Fire' : '',
-    state.hasCookfire ? 'Cooking Fire' : '',
-    state.hasWell ? 'Well' : '',
-    state.clearedPlots > 0 ? `Farm Plots (${state.clearedPlots})` : '',
-    state.hasMarketStall ? 'Market Stall' : '',
-    state.cottagesCount > 0 ? `${state.cottagesCount} Cottage(s)` : '',
-  ].filter(Boolean);
-
-  const selectedCottage = state.cottages.find((cottage) => cottage.id === state.selectedCottageId) || state.cottages[0] || null;
-  const selectedRoster = selectedCottage ? getCottageRoster(selectedCottage.id) : [];
-
-  const hasCampfire = state.hasCookfire || state.hasHandmadeFire;
-  const hasFarmPlots = state.clearedPlots > 0 || state.plantedPlots.length > 0 || readyCount > 0;
-  const farmPlotStateClass = readyCount > 0 ? 'state-ready' : (state.plantedPlots.length > 0 ? 'state-planted' : 'state-cleared');
-  const visibleCottages = Math.min(state.cottagesCount, 4);
-
-  const cottageSceneMarkup = Array.from({ length: visibleCottages }, (_, index) => {
-    const cottageNumber = index + 1;
-    return `<div class="map-cottage c${cottageNumber}"><span>Cottage ${cottageNumber}</span></div>`;
-  }).join('');
-
   const nav = `
     <section>
       <div class="actions">
         <button class="action-btn" data-action="openMainPage">Main</button>
         <button class="action-btn" data-action="openAdvancementPage">Advancement Table</button>
-        <button class="action-btn" data-action="openTownMap">Town Map</button>
       </div>
     </section>
   `;
@@ -1910,61 +1859,6 @@ function render() {
                 `,
               )
               .join('')}
-          </section>
-        </section>
-      </main>
-    `;
-  } else if (state.activePage === 'townMap') {
-    app.innerHTML = `
-      <main class="page">
-        <section class="options-column advancement-page townmap-layout full-map">
-          <section class="stats-box townmap-canvas full-map">
-            <div class="town-map-scene">
-              <div class="townmap-hud">
-                <h1>Town Map</h1>
-                <p class="muted">Birdseye snapshot of your settlement. Build up to reveal more of town.</p>
-                ${nav}
-              </div>
-
-              <span class="map-brush b1" aria-hidden="true"></span>
-              <span class="map-brush b2" aria-hidden="true"></span>
-              <span class="map-brush b3" aria-hidden="true"></span>
-              <span class="map-brush b4" aria-hidden="true"></span>
-              <div class="map-path ${hasCampfire && hasFarmPlots ? '' : 'hidden'}" aria-hidden="true"></div>
-              <div class="map-feature sleeping-spot ${state.hasSleepingSpot ? '' : 'hidden'}">Bedroll</div>
-              <div class="map-feature campfire ${hasCampfire ? '' : 'hidden'}" title="Campfire">🔥</div>
-              <div class="map-feature lean-to ${state.shelterLevel >= 1 ? '' : 'hidden'}">Lean-to</div>
-              <div class="farm-plots ${hasFarmPlots ? '' : 'hidden'} ${farmPlotStateClass}">
-                <div class="farm-plot-grid">
-                  <span class="farm-plot-cell"></span><span class="farm-plot-cell"></span><span class="farm-plot-cell"></span>
-                  <span class="farm-plot-cell"></span><span class="farm-plot-cell"></span><span class="farm-plot-cell"></span>
-                </div>
-                <div class="farm-plot-label">Farm Plots</div>
-              </div>
-              ${cottageSceneMarkup}
-              <div class="map-feature well ${state.hasWell ? '' : 'hidden'}">Well</div>
-              <div class="map-feature market ${state.hasMarketStall ? '' : 'hidden'}">Market</div>
-
-              <div class="townmap-panels">
-                <section class="stats-box">
-                  <h3>Built Features</h3>
-                  ${builtMapFeatures.length ? `<p>${builtMapFeatures.join(' · ')}</p>` : '<p class="muted">Your town is still tiny. Build structures to populate the map.</p>'}
-                </section>
-
-                <section class="stats-box">
-                  <h3>Cottages</h3>
-                  ${state.cottages.length
-                    ? `<div class="cottage-list">${state.cottages.map((cottage) => {
-                      const roster = getCottageRoster(cottage.id);
-                      return `<button class="action-btn" data-action="selectCottage:${cottage.id}">${cottage.label}: ${roster.length}/3 filled</button>`;
-                    }).join('')}</div>`
-                    : '<p class="muted">No cottages built yet.</p>'}
-                  ${selectedCottage
-                    ? `<div class="stats-box"><h4>${selectedCottage.label}</h4><p class="muted">${selectedRoster.length}/3 filled</p>${selectedRoster.length ? `<ul>${selectedRoster.map((person) => `<li>${person.name}${person.role ? ` — ${person.role}` : ''}</li>`).join('')}</ul>` : '<p class="muted">Empty cottage slot.</p>'}</div>`
-                    : ''}
-                </section>
-              </div>
-            </div>
           </section>
         </section>
       </main>
